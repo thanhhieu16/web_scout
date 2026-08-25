@@ -34,4 +34,4 @@ def count_web_searches(result: Any) -> int:
 
 
 def attach_server_tools(model, specs: list[dict]):
-    return model.bind(extra_body={"tools": specs})
+    return model.model_copy(update={"extra_body": {"tools": specs}})
