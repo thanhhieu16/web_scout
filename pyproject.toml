@@ -1,0 +1,25 @@
+[project]
+name = "webscout"
+version = "0.1.0"
+description = "Mini deep-research agent"
+requires-python = ">=3.12"
+dependencies = [
+    "deepagents>=0.6",
+    "langchain-openai>=1.0",
+    "langgraph>=1.0",
+    "trafilatura>=2.0",
+    "httpx>=0.28",
+    "pydantic-settings[yaml]>=2.6",
+    "langsmith>=0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+webscout = "app.main:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires OPENROUTER_API_KEY and network",
+]

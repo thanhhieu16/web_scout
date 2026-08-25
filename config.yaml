@@ -1,0 +1,19 @@
+researcher:
+  model: stealth/ox-alpha
+  temperature: 0.2
+verifier:
+  model: stealth/ox-alpha
+  temperature: 0.0
+answer:
+  model: stealth/ox-alpha
+  temperature: 0.3
+max_iterations: 3
+skills_enabled: false
+search:
+  max_results: 5
+  max_uses: 4
+  max_characters: 4000
+fetch:
+  timeout_seconds: 15.0
+  max_chars: 20000
+  user_agent: "WebScout/0.1 (research agent)"
