@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from typing import Callable
 
 from pydantic import ValidationError
@@ -48,10 +49,30 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
             + "\n\nSources:\n"
             + json.dumps(state.get("sources") or [], ensure_ascii=False, indent=2)
         )
-        reply = llm.invoke(
-            [("system", VERIFY_SYSTEM_PROMPT), ("human", human)]
-        )
-        result = _parse_verdict(str(reply.content))
+        try:
+            reply = llm.invoke(
+                [("system", VERIFY_SYSTEM_PROMPT), ("human", human)]
+            )
+            result = _parse_verdict(str(reply.content))
+        except ValueError:
+            retry_human = (
+                human
+                + "\n\nYour previous reply was not valid JSON. "
+                "Reply with JSON only, exactly the specified shape."
+            )
+            reply = llm.invoke(
+                [("system", VERIFY_SYSTEM_PROMPT), ("human", retry_human)]
+            )
+            try:
+                result = _parse_verdict(str(reply.content))
+            except ValueError as exc:
+                print(f"[warn] verifier parse failed after retry: {exc}", file=sys.stderr)
+                return {
+                    "sufficient": False,
+                    "gaps": ["verifier parse error"],
+                    "contradictory_claims": [],
+                    "weak_claims": list(state.get("weak_claims") or []),
+                }
         merged_weak = list(dict.fromkeys(
             (state.get("weak_claims") or []) + result.weak_claims
         ))
