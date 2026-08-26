@@ -32,15 +32,15 @@ def run_question(question: str, agent=None, settings=None) -> dict:
     )
     messages = result["messages"]
     message = messages[-1]
-    findings, refs, narrative = parse_findings_block(str(message.content))
+    parsed = parse_findings_block(str(message.content))
     sources, ref_order = build_sources(messages)
-    findings, _ = map_refs_to_urls(findings, refs, ref_order)
+    findings, _ = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
     _, unknown = reconcile_sources(findings, ref_order)
     searches = count_total_searches(messages)
     if unknown:
         print(f"[warn] {len(unknown)} uncited URL(s) ignored", file=sys.stderr)
     return {
-        "answer": narrative.strip(),
+        "answer": parsed.narrative.strip(),
         "sources": sources,
         "findings": findings,
         "search_calls": searches,

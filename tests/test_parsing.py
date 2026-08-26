@@ -18,25 +18,24 @@ LangGraph chạy vòng lặp state machine còn Temporal chạy workflow durable
 
 
 def test_parse_findings_block_extracts_and_strips():
-    findings, refs, narrative = parse_findings_block(SAMPLE)
-    assert len(findings) == 2
-    assert findings[0]["claim"].startswith("LangGraph is")
-    assert refs[0] == ["S1"]
-    assert findings[0]["confidence"] == "high"
-    assert "FINDINGS" not in narrative
-    assert narrative.strip().startswith("Nghiên cứu")
+    parsed = parse_findings_block(SAMPLE)
+    assert len(parsed.findings) == 2
+    assert parsed.findings[0]["claim"].startswith("LangGraph is")
+    assert parsed.refs[0] == ["S1"]
+    assert parsed.findings[0]["confidence"] == "high"
+    assert "FINDINGS" not in parsed.narrative
+    assert parsed.narrative.strip().startswith("Nghiên cứu")
 
 
 def test_parse_findings_block_absent():
-    findings, _, narrative = parse_findings_block("Chỉ là văn bản thường.")
-    assert findings == []
-    assert narrative == "Chỉ là văn bản thường."
+    parsed = parse_findings_block("Chỉ là văn bản thường.")
+    assert parsed.findings == []
+    assert parsed.narrative == "Chỉ là văn bản thường."
 
 
 def test_parse_findings_bad_confidence_skipped():
     text = "## FINDINGS\n- [S1] claim one | confidence: very-high\n"
-    findings, _, _ = parse_findings_block(text)
-    assert findings == []
+    assert parse_findings_block(text).findings == []
 
 
 def _msg(annotations):
@@ -92,23 +91,21 @@ def test_reconcile_sources_dedupes_and_flags_unknown():
 
 
 def test_parse_maps_source_refs_to_urls():
-    findings, refs, _ = parse_findings_block(SAMPLE)
+    parsed = parse_findings_block(SAMPLE)
     citations = [
         {"url": "https://langchain.ai", "title": "LG docs", "content": ""},
         {"url": "https://temporal.io", "title": "Temporal docs", "content": ""},
     ]
-    mapped, unknown = map_refs_to_urls(findings, refs, citations)
+    mapped, unknown = map_refs_to_urls(parsed.findings, parsed.refs, citations)
     assert mapped[0]["source_urls"] == ["https://langchain.ai"]
     assert mapped[1]["source_urls"] == ["https://temporal.io"]
     assert unknown == []
 
 
 def test_map_refs_unresolved_marker():
-    findings, refs, _ = parse_findings_block(
-        "## FINDINGS\n- [S9] Ghost | confidence: low\n"
-    )
+    parsed = parse_findings_block("## FINDINGS\n- [S9] Ghost | confidence: low\n")
     mapped, _ = map_refs_to_urls(
-        findings, refs, [{"url": "https://y.dev", "title": "Y", "content": ""}]
+        parsed.findings, parsed.refs, [{"url": "https://y.dev", "title": "Y", "content": ""}]
     )
     assert mapped[0]["source_urls"] == ["unresolved:S9"]
 
@@ -120,3 +117,27 @@ def test_reconcile_flags_unresolved_prefix():
     sources, unknown = reconcile_sources(findings, [])
     assert unknown == ["unresolved:S9"]
     assert sources == []
+
+
+def test_parse_reports_dropped_lines():
+    text = (
+        "Body.\n\n## FINDINGS\n"
+        "- [S1] good claim | confidence: high\n"
+        "- [S2] bad claim | confidence: very-high\n"
+        "just some prose\n"
+    )
+    parsed = parse_findings_block(text)
+    assert len(parsed.findings) == 1
+    assert parsed.dropped == [
+        "- [S2] bad claim | confidence: very-high",
+        "just some prose",
+    ]
+    assert parsed.block_found is True
+
+
+def test_parse_reports_missing_block():
+    parsed = parse_findings_block("No contract here at all.")
+    assert parsed.block_found is False
+    assert parsed.findings == []
+    assert parsed.dropped == []
+    assert parsed.narrative == "No contract here at all."

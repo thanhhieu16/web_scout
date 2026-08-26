@@ -1,4 +1,5 @@
 import json
+import sys
 from collections.abc import Callable
 
 from app.backoff import call_with_backoff
@@ -48,23 +49,36 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
         )
         messages = result["messages"]
         message = messages[-1]
-        findings, refs, _ = parse_findings_block(str(message.content))
+        parsed = parse_findings_block(str(message.content))
         sources, ref_order = build_sources(messages)
-        findings, _ = map_refs_to_urls(findings, refs, ref_order)
+        findings, _ = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
         _, unknown = reconcile_sources(findings, ref_order)
         unknown_set = set(unknown)
         seen_weak: set[str] = set()
         weak: list[str] = []
+
+        def _note(item: str) -> None:
+            if item not in seen_weak:
+                seen_weak.add(item)
+                weak.append(item)
+
+        if not parsed.block_found:
+            _note("research reply had no ## FINDINGS block")
+            print(
+                "[warn] research reply had no ## FINDINGS block",
+                file=sys.stderr,
+                flush=True,
+            )
+        for line in parsed.dropped:
+            _note(f"unparseable FINDINGS line: {line}")
+            print(f"[warn] unparseable FINDINGS line: {line}", file=sys.stderr, flush=True)
         for finding in findings:
             for u in finding.get("source_urls", []):
                 if u in unknown_set and u.startswith("unresolved:"):
-                    item = (
+                    _note(
                         f"claim '{finding.get('claim', '')}' references "
                         f"unknown citation: {u.replace('unresolved:', '[ref] ')}"
                     )
-                    if item not in seen_weak:
-                        seen_weak.add(item)
-                        weak.append(item)
         tokens, cost = sum_usage(messages)
         return {
             "findings": findings,

@@ -98,3 +98,20 @@ def test_multi_message_run_collects_citations_and_searches():
     ]
     assert delta["search_calls"] == 3
     assert delta["findings"][0]["source_urls"] == ["https://a.dev"]
+
+
+def test_missing_findings_block_becomes_weak_claim(capsys):
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    agent = FakeAgent(_msg("Prose only, no contract.", []))
+    delta = make_research_node(agent, s)({"question": "Q?", "iteration": 0})
+    assert any("no ## FINDINGS block" in w for w in delta["weak_claims"])
+    assert "[warn]" in capsys.readouterr().err
+
+
+def test_unparseable_findings_line_becomes_weak_claim(capsys):
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    bad = "Body.\n\n## FINDINGS\n- [S1] claim | confidence: certainly\n"
+    agent = FakeAgent(_msg(bad, [{"url": "https://y.dev", "title": "Y", "content": ""}]))
+    delta = make_research_node(agent, s)({"question": "Q?", "iteration": 0})
+    assert any("unparseable FINDINGS line" in w for w in delta["weak_claims"])
+    assert "[warn]" in capsys.readouterr().err

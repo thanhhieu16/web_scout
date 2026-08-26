@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, NamedTuple
 
 from app.schemas import Finding, Source
 from app.tools.search import count_web_searches
@@ -12,19 +12,29 @@ _LINE_RE = re.compile(
 _BLOCK_RE = re.compile(r"^##\s*FINDINGS\s*$", re.IGNORECASE | re.MULTILINE)
 
 
-def parse_findings_block(text: str) -> tuple[list[Finding], list[list[str]], str]:
+class FindingsParse(NamedTuple):
+    findings: list[Finding]
+    refs: list[list[str]]
+    narrative: str
+    dropped: list[str]
+    block_found: bool
+
+
+def parse_findings_block(text: str) -> FindingsParse:
     match = _BLOCK_RE.search(text)
     if not match:
-        return [], [], text
+        return FindingsParse([], [], text, [], False)
     narrative = text[: match.start()].rstrip()
     findings: list[Finding] = []
     refs: list[list[str]] = []
+    dropped: list[str] = []
     for raw in text[match.end() :].splitlines():
         line = raw.strip()
         if not line:
             continue
         m = _LINE_RE.match(line)
         if not m:
+            dropped.append(line)
             continue
         findings.append(
             Finding(
@@ -34,7 +44,7 @@ def parse_findings_block(text: str) -> tuple[list[Finding], list[list[str]], str
             )
         )
         refs.append([m.group("ref")])
-    return findings, refs, narrative
+    return FindingsParse(findings, refs, narrative, dropped, True)
 
 
 def map_refs_to_urls(
