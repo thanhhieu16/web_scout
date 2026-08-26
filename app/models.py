@@ -12,9 +12,11 @@ class ResearchChatOpenAI(ChatOpenAI):
 
     def _get_request_payload(self, *args, **kwargs):
         payload = super()._get_request_payload(*args, **kwargs)
-        tools = list(payload.get("tools") or [])
-        tools.extend(self.server_tools)
-        payload["tools"] = tools
+        tools = list(payload.get("tools") or []) + list(self.server_tools)
+        if tools:
+            payload["tools"] = tools
+        else:
+            payload.pop("tools", None)
         return payload
 
     def _create_chat_result(self, response, generation_info=None):

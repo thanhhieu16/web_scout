@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import AliasChoices, BaseModel, Field
@@ -34,10 +35,19 @@ class FetchConfig(BaseModel):
     max_download_bytes: int = 2_000_000
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _yaml_path() -> str:
+    """Prefer ./config.yaml so a local override wins; fall back to the repo's own."""
+    local = Path("config.yaml")
+    return str(local if local.is_file() else REPO_ROOT / "config.yaml")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
-        yaml_file="config.yaml",
+        yaml_file=_yaml_path(),
         extra="ignore",
     )
 

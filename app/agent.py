@@ -1,6 +1,6 @@
-from pathlib import Path
+from deepagents import create_deep_agent as _create_deep_agent
 
-from app.config import Settings, get_settings
+from app.config import REPO_ROOT, Settings, get_settings
 from app.models import get_model
 from app.tools.fetch import make_web_fetch
 from app.tools.search_tool import make_web_search
@@ -47,11 +47,9 @@ def build_research_agent(settings: Settings | None = None):
         tools=[make_web_search(s), make_web_fetch(s.fetch)],
         system_prompt=RESEARCH_SYSTEM_PROMPT,
     )
-    if s.skills_enabled and Path("skills").is_dir():
+    if s.skills_enabled and (REPO_ROOT / "skills").is_dir():
         from deepagents.backends.filesystem import FilesystemBackend
 
-        kwargs["backend"] = FilesystemBackend(root_dir=".")
+        kwargs["backend"] = FilesystemBackend(root_dir=str(REPO_ROOT))
         kwargs["skills"] = ["skills/"]
-    from deepagents import create_deep_agent
-
-    return create_deep_agent(**kwargs)
+    return _create_deep_agent(**kwargs)

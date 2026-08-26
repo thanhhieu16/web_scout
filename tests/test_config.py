@@ -37,3 +37,11 @@ def test_load_env_file_populates_os_environ(tmp_path, monkeypatch):
 
     load_env_file(str(tmp_path / '.env'))
     assert os.environ["LANGSMITH_PROJECT"] == "webscout-test"
+
+
+def test_config_yaml_falls_back_to_repo_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    # repo config.yaml sets skills_enabled: true; the code default is False
+    assert s.skills_enabled is True
