@@ -10,6 +10,9 @@ _LINE_RE = re.compile(
     re.IGNORECASE,
 )
 _BLOCK_RE = re.compile(r"^##\s*FINDINGS\s*$", re.IGNORECASE | re.MULTILINE)
+# A line that opens like a finding but fails _LINE_RE is a possibly-lost claim.
+# Anything else after the block is trailing prose, not evidence.
+_ATTEMPTED_RE = re.compile(r"^-\s*\[S\d+\]", re.IGNORECASE)
 
 
 class FindingsParse(NamedTuple):
@@ -34,7 +37,8 @@ def parse_findings_block(text: str) -> FindingsParse:
             continue
         m = _LINE_RE.match(line)
         if not m:
-            dropped.append(line)
+            if _ATTEMPTED_RE.match(line):
+                dropped.append(line)
             continue
         findings.append(
             Finding(

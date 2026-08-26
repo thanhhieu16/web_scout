@@ -130,7 +130,6 @@ def test_parse_reports_dropped_lines():
     assert len(parsed.findings) == 1
     assert parsed.dropped == [
         "- [S2] bad claim | confidence: very-high",
-        "just some prose",
     ]
     assert parsed.block_found is True
 
@@ -141,3 +140,14 @@ def test_parse_reports_missing_block():
     assert parsed.findings == []
     assert parsed.dropped == []
     assert parsed.narrative == "No contract here at all."
+
+
+def test_parse_ignores_trailing_prose_after_block():
+    text = (
+        "Body.\n\n## FINDINGS\n"
+        "- [S1] good claim | confidence: high\n\n"
+        "Hope this helps! Let me know if you want more detail.\n"
+    )
+    parsed = parse_findings_block(text)
+    assert len(parsed.findings) == 1
+    assert parsed.dropped == []
