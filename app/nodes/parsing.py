@@ -1,30 +1,47 @@
 import re
-from typing import Any
+from typing import Any, NamedTuple
 
 from app.schemas import Finding, Source
 from app.tools.search import count_web_searches
 
 _LINE_RE = re.compile(
-    r"^-\s*\[(?P<ref>S\d+)\]\s+(?P<claim>.+?)\s*\|\s*confidence:\s*"
+    r"^-\s*(?P<refs>(?:\[S\d+\][\s,]*)+)\s*(?P<claim>.+?)\s*\|\s*confidence:\s*"
     r"(?P<conf>high|medium|low)\s*$",
     re.IGNORECASE,
 )
+_REF_RE = re.compile(r"S\d+", re.IGNORECASE)
 _BLOCK_RE = re.compile(r"^##\s*FINDINGS\s*$", re.IGNORECASE | re.MULTILINE)
+# A line that opens like a finding, or carries a confidence marker, but still fails
+# _LINE_RE is a possibly-lost claim (e.g. a claim missing its [Sn] ref entirely).
+# Anything else after the block is trailing prose, not evidence. Deliberately kept
+# independent of _LINE_RE so a change to one doesn't silently narrow the other.
+_ATTEMPTED_RE = re.compile(r"^-\s*\[S\d+\]|\|\s*confidence\s*:", re.IGNORECASE)
 
 
-def parse_findings_block(text: str) -> tuple[list[Finding], list[list[str]], str]:
+class FindingsParse(NamedTuple):
+    findings: list[Finding]
+    refs: list[list[str]]
+    narrative: str
+    dropped: list[str]
+    block_found: bool
+
+
+def parse_findings_block(text: str) -> FindingsParse:
     match = _BLOCK_RE.search(text)
     if not match:
-        return [], [], text
+        return FindingsParse([], [], text, [], False)
     narrative = text[: match.start()].rstrip()
     findings: list[Finding] = []
     refs: list[list[str]] = []
+    dropped: list[str] = []
     for raw in text[match.end() :].splitlines():
         line = raw.strip()
         if not line:
             continue
         m = _LINE_RE.match(line)
         if not m:
+            if _ATTEMPTED_RE.search(line):
+                dropped.append(line)
             continue
         findings.append(
             Finding(
@@ -33,29 +50,26 @@ def parse_findings_block(text: str) -> tuple[list[Finding], list[list[str]], str
                 confidence=m.group("conf").lower(),
             )
         )
-        refs.append([m.group("ref")])
-    return findings, refs, narrative
+        refs.append([r.upper() for r in _REF_RE.findall(m.group("refs"))])
+    return FindingsParse(findings, refs, narrative, dropped, True)
 
 
 def map_refs_to_urls(
     findings: list[Finding], refs: list[list[str]], citations: list[dict]
-) -> tuple[list[Finding], list[str]]:
+) -> list[Finding]:
     ordered_urls = [c.get("url") for c in citations if c.get("url")]
     ref_to_url = {f"S{i + 1}": u for i, u in enumerate(ordered_urls)}
     mapped: list[Finding] = []
-    for finding, finding_refs in zip(findings, refs):
-        urls: list[str] = []
-        for r in finding_refs:
-            if r in ref_to_url:
-                urls.append(ref_to_url[r])
-            else:
-                urls.append(f"unresolved:{r}")
-        mapped.append(Finding(
-            claim=finding["claim"],
-            source_urls=list(dict.fromkeys(urls)),
-            confidence=finding["confidence"],
-        ))
-    return mapped, []
+    for finding, finding_refs in zip(findings, refs, strict=True):
+        urls = [ref_to_url.get(r, f"unresolved:{r}") for r in finding_refs]
+        mapped.append(
+            Finding(
+                claim=finding["claim"],
+                source_urls=list(dict.fromkeys(urls)),
+                confidence=finding["confidence"],
+            )
+        )
+    return mapped
 
 
 def extract_url_citations(message: Any) -> list[dict]:
@@ -97,17 +111,14 @@ def collect_citations(messages) -> list[dict]:
 
 
 def count_total_searches(messages) -> int:
+    """Counts only server-tool usage reported in message metadata. Searches made
+    by the client-side web_search tool arrive through UsageCollector instead."""
     total = 0
     for message in messages:
         try:
             total += count_web_searches(message)
         except (TypeError, ValueError):
             continue
-        content = getattr(message, "content", "")
-        if isinstance(content, str):
-            match = re.search(r"(\d+) search executed", content)
-            if match:
-                total += int(match.group(1))
     return total
 
 
@@ -232,28 +243,13 @@ def build_sources(messages) -> "tuple[list[Source], list[dict]]":
     return ordered, ref_order
 
 
-def reconcile_sources(
-    findings: list[Finding], citations: list[dict]
-) -> tuple[list[Source], list[str]]:
-    sources: list[Source] = []
-    known: set[str] = set()
-    for cite in citations:
-        url = cite.get("url")
-        if not url or url in known:
-            continue
-        known.add(url)
-        sources.append(
-            Source(
-                url=url,
-                title=cite.get("title") or url,
-                source_type="secondary",
-                excerpt=(cite.get("content") or "")[:500],
-            )
-        )
+def find_unknown_refs(findings: list[Finding], citations: list[dict]) -> list[str]:
+    """URLs a finding cites that are not in the reconstructed citation list."""
+    known = {c["url"] for c in citations if c.get("url")}
     unknown: list[str] = []
     for finding in findings:
         for url in finding.get("source_urls", []):
             resolvable = url.startswith("http") or url.startswith("unresolved:")
-            if url not in known and url not in unknown and resolvable:
+            if resolvable and url not in known and url not in unknown:
                 unknown.append(url)
-    return sources, unknown
+    return unknown

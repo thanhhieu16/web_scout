@@ -45,9 +45,24 @@ def test_web_search_formats_annotations():
     assert "EXCERPT: useful x content" in out
 
 
-def test_web_search_http_error_returns_search_error():
+def test_web_search_http_error_returns_search_error(monkeypatch):
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, text="boom")
+
+    tool = make_web_search(Settings(_env_file=None), transport=httpx.MockTransport(handler))  # type: ignore[call-arg]
+    out = tool.invoke({"query": "q"})
+    assert out.startswith("SEARCH_ERROR:")
+
+
+def test_web_search_malformed_body_returns_search_error_not_raise():
+    """A 200 with an HTML interstitial (proxy/Cloudflare block page) must not escape as
+    a json.JSONDecodeError — response parsing must sit inside the same error boundary as
+    the HTTP call, exactly like web_fetch's FETCH_ERROR."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>blocked</html>")
 
     tool = make_web_search(Settings(_env_file=None), transport=httpx.MockTransport(handler))  # type: ignore[call-arg]
     out = tool.invoke({"query": "q"})
@@ -72,7 +87,10 @@ def test_collect_search_tool_sources_pairs_and_parses():
         "[SRC] https://b.dev | B Title\nEXCERPT: beta excerpt"
     )
     messages = [
-        AIMessage(content="", tool_calls=[{"name": "web_search", "args": {"query": "q"}, "id": "s1"}]),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "web_search", "args": {"query": "q"}, "id": "s1"}],
+        ),
         ToolMessage(content=content, tool_call_id="s1"),
         AIMessage(content="## FINDINGS\n- [S1] claim | confidence: high\n"),
     ]
@@ -84,7 +102,93 @@ def test_collect_search_tool_sources_pairs_and_parses():
 
 def test_collect_search_tool_sources_ignores_unrelated_tools():
     messages = [
-        AIMessage(content="", tool_calls=[{"name": "web_fetch", "args": {"url": "https://z"}, "id": "f1"}]),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "web_fetch", "args": {"url": "https://z"}, "id": "f1"}],
+        ),
         ToolMessage(content="[SRC] https://noisy.dev | N\nEXCERPT: x", tool_call_id="f1"),
     ]
     assert collect_search_tool_sources(messages) == []
+
+
+def test_web_search_records_usage():
+    from app.usage import UsageCollector
+
+    body = _ok_response_body()
+    body["usage"]["total_tokens"] = 900
+    body["usage"]["cost"] = 0.0042
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    collector = UsageCollector()
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+        usage=collector,
+    )
+    tool.invoke({"query": "q"})
+    tokens, cost, searches = collector.drain()
+    assert tokens == 900
+    assert abs(cost - 0.0042) < 1e-9
+    assert searches == 1
+
+
+def test_web_search_records_usage_even_with_no_results():
+    from app.usage import UsageCollector
+
+    body = {
+        "choices": [{"message": {"role": "assistant", "content": "nothing"}}],
+        "usage": {"total_tokens": 120, "cost": 0.0008},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    collector = UsageCollector()
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+        usage=collector,
+    )
+    out = tool.invoke({"query": "q"})
+    assert out == "SEARCH_ERROR: no results returned"
+    tokens, cost, _ = collector.drain()
+    assert tokens == 120
+    assert abs(cost - 0.0008) < 1e-9
+
+
+def test_web_search_body_requests_usage_accounting():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json=_ok_response_body())
+
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+    )
+    tool.invoke({"query": "q"})
+    assert captured["usage"] == {"include": True}
+
+
+def test_web_search_retries_transient_500(monkeypatch):
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return httpx.Response(503, text="unavailable")
+        return httpx.Response(200, json=_ok_response_body())
+
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+    )
+    out = tool.invoke({"query": "q"})
+    assert out.startswith("SEARCH_RESULTS")
+    assert calls["n"] == 2

@@ -9,10 +9,11 @@ from app.graph import build_graph
 from app.nodes.parsing import (
     build_sources,
     count_total_searches,
+    find_unknown_refs,
     map_refs_to_urls,
     parse_findings_block,
-    reconcile_sources,
 )
+from app.usage import UsageCollector
 
 
 def require_openrouter_key(settings=None) -> None:
@@ -23,24 +24,27 @@ def require_openrouter_key(settings=None) -> None:
         )
 
 
-def run_question(question: str, agent=None, settings=None) -> dict:
+def run_question(question: str, agent=None, settings=None, usage=None) -> dict:
     s = settings or get_settings()
-    deep = agent or build_research_agent(s)
+    if usage is None:
+        usage = UsageCollector()
+    deep = agent or build_research_agent(s, usage=usage)
     result = deep.invoke(
         {"messages": [{"role": "user", "content": question}]},
         config={"recursion_limit": 50},
     )
     messages = result["messages"]
     message = messages[-1]
-    findings, refs, narrative = parse_findings_block(str(message.content))
+    parsed = parse_findings_block(str(message.content))
     sources, ref_order = build_sources(messages)
-    findings, _ = map_refs_to_urls(findings, refs, ref_order)
-    _, unknown = reconcile_sources(findings, ref_order)
-    searches = count_total_searches(messages)
+    findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
+    unknown = find_unknown_refs(findings, ref_order)
+    _, _, tool_searches = usage.drain()
+    searches = count_total_searches(messages) + tool_searches
     if unknown:
         print(f"[warn] {len(unknown)} uncited URL(s) ignored", file=sys.stderr)
     return {
-        "answer": narrative.strip(),
+        "answer": parsed.narrative.strip(),
         "sources": sources,
         "findings": findings,
         "search_calls": searches,
@@ -54,11 +58,12 @@ def run_pipeline(question: str, graph=None) -> dict:
     s = get_settings()
     state = {"question": question, "iteration": 0, "max_iterations": s.max_iterations}
     final = dict(state)
-    for update in g.stream(state, stream_mode="updates"):
-        for node, delta in update.items():
-            print(f"[{node}] ...", flush=True)
-            if isinstance(delta, dict):
-                final.update(delta)
+    for mode, chunk in g.stream(state, stream_mode=["updates", "values"]):
+        if mode == "updates":
+            for node in chunk:
+                print(f"[{node}] ...", flush=True)
+        else:
+            final = chunk
     return {
         "answer": final.get("answer", ""),
         "sources": final.get("sources", []),
@@ -90,7 +95,7 @@ def _print_result(out: dict) -> None:
 
 def write_report(question: str, out: dict, path: str) -> None:
     lines = [
-        f"# WebScout Report",
+        "# WebScout Report",
         "",
         f"- **Question:** {question}",
         f"- **Generated:** {datetime.now().isoformat(timespec='seconds')}",
@@ -127,7 +132,11 @@ def write_report(question: str, out: dict, path: str) -> None:
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="webscout")
     parser.add_argument("question", nargs="*", help="research question")
-    parser.add_argument("--out", default=None, help="write a markdown report to this path (one-shot mode)")
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="write a markdown report to this path (one-shot mode)",
+    )
     args = parser.parse_args(argv)
     require_openrouter_key()
     if args.question:

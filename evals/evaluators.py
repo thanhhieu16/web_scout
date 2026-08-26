@@ -1,7 +1,7 @@
 import json
 import re
 
-from langsmith.evaluation import EvaluationResult
+from langsmith.evaluation import EvaluationResult, EvaluationResults
 
 from app.models import get_model
 
@@ -12,7 +12,7 @@ def correctness_evaluator(run, example) -> EvaluationResult:
     question = (run.inputs or {}).get("question", "")
     answer = (run.outputs or {}).get("answer", "")
     notes = (example.outputs or {}).get("reference_notes", "")
-    judge = get_model("verifier")
+    judge = get_model("judge")
     verdict = judge.invoke(
         [
             (
@@ -50,66 +50,73 @@ def citation_support_evaluator(run, example, judge=None) -> EvaluationResult:
             comment=f"unresolved={unresolved}, refs={sorted(refs)}",
         )
     cited = sorted(refs)
-    pair = next(
-        (
-            (n, str((sources[n - 1] or {}).get("excerpt") or ""))
-            for n in cited
-            if str((sources[n - 1] or {}).get("excerpt") or "").strip()
-        ),
-        None,
-    )
-    if pair is None:
+    checkable = [
+        (n, str((sources[n - 1] or {}).get("excerpt") or "").strip())
+        for n in cited
+        if str((sources[n - 1] or {}).get("excerpt") or "").strip()
+    ]
+    if not checkable:
         return EvaluationResult(
             key="citation_support",
             score=1.0,
             comment=f"resolved refs, no excerpts to check: {cited}",
         )
-    _, excerpt = pair
-    active_judge = judge or get_model("verifier")
-    verdict = active_judge.invoke(
-        [
-            (
-                "system",
-                'You verify whether an excerpt supports an answer claim. '
-                'Reply JSON {"supported": bool}.',
-            ),
-            ("human", f"Answer claim:\n{answer}\n\nExcerpt:\n{excerpt}"),
-        ]
-    )
-    try:
-        parsed = json.loads(re.search(r"\{[\s\S]*\}", str(verdict.content)).group(0))
-        supported = bool(parsed["supported"])
-    except Exception as exc:
-        return EvaluationResult(
-            key="citation_support",
-            score=0.5,
-            comment=f"judge parse failure for ref [{pair[0]}]: {exc}",
+    active_judge = judge or get_model("judge")
+    supported = 0
+    notes: list[str] = []
+    for ref, excerpt in checkable:
+        verdict = active_judge.invoke(
+            [
+                (
+                    "system",
+                    'You verify whether an excerpt supports an answer claim. '
+                    'Reply JSON {"supported": bool}.',
+                ),
+                ("human", f"Answer claim:\n{answer}\n\nExcerpt:\n{excerpt}"),
+            ]
         )
-    if supported:
-        return EvaluationResult(
-            key="citation_support",
-            score=1.0,
-            comment=f"excerpt supports ref [{pair[0]}]",
-        )
+        try:
+            parsed = json.loads(re.search(r"\{[\s\S]*\}", str(verdict.content)).group(0))
+            if bool(parsed["supported"]):
+                supported += 1
+            else:
+                notes.append(f"[{ref}] unsupported")
+        except Exception as exc:
+            notes.append(f"[{ref}] judge parse failure: {exc}")
     return EvaluationResult(
         key="citation_support",
-        score=0.5,
-        comment=f"judge says excerpt does not support ref [{pair[0]}]",
+        score=supported / len(checkable),
+        comment=f"{supported}/{len(checkable)} refs supported"
+        + (f"; {', '.join(notes)}" if notes else ""),
     )
 
 
-def metrics_evaluator(run, example) -> list[EvaluationResult]:
+def metrics_evaluator(run, example) -> EvaluationResults:
     outputs = run.outputs or {}
     latency = 0.0
     if getattr(run, "start_time", None) and getattr(run, "end_time", None):
         latency = (run.end_time - run.start_time).total_seconds()
+    # Prefer the run's own reported total_tokens/total_cost: LangSmith's run.total_tokens
+    # only sees tokens that flowed through LangChain's chat-model instrumentation, which
+    # misses the web_search tool's separate OpenRouter HTTP call (see UsageCollector).
+    # outputs["total_tokens"] / outputs["total_cost"] come from ResearchState via target(),
+    # which does include that usage.
+    if "total_tokens" in outputs:
+        total_tokens = int(outputs.get("total_tokens", 0) or 0)
+    else:
+        total_tokens = int(getattr(run, "total_tokens", 0) or 0)
     values = {
         "latency_s": latency,
-        "total_tokens": int(getattr(run, "total_tokens", 0) or 0),
+        "total_tokens": total_tokens,
+        "total_cost": float(outputs.get("total_cost", 0.0) or 0.0),
         "search_calls": int(outputs.get("search_calls", 0) or 0),
         "num_sources": len(outputs.get("sources") or []),
     }
-    return [
-        EvaluationResult(key=k, score=float(v), value=float(v))
-        for k, v in values.items()
-    ]
+    # langsmith==0.11.1's client rejects a bare list of EvaluationResult; it
+    # requires the EvaluationResults mapping wrapper (see task-13 fix round).
+    return {
+        "results": [
+            EvaluationResult(key=k, score=float(v), value=float(v))
+            for k, v in values.items()
+        ]
+    }

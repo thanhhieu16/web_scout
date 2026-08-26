@@ -1,7 +1,7 @@
 import json
 import re
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 from pydantic import ValidationError
 
@@ -25,7 +25,8 @@ Checklist:
 Be strict but pragmatic: minor stylistic gaps are fine to pass.
 
 Reply with JSON only, exactly this shape:
-{"sufficient": bool, "missing_information": [str], "weak_claims": [str], "contradictory_claims": [str]}"""
+{"sufficient": bool, "missing_information": [str], "weak_claims": [str],
+ "contradictory_claims": [str]}"""
 
 
 def _parse_verdict(raw: str) -> VerificationResult:
@@ -71,25 +72,18 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
                 print(f"[warn] verifier parse failed after retry: {exc}", file=sys.stderr)
                 result = None
         tokens, cost = sum_usage([reply])
-        usage_delta = {
-            "total_tokens": state.get("total_tokens", 0) + tokens,
-            "total_cost": round(state.get("total_cost", 0.0) + cost, 6),
-        }
+        usage_delta = {"total_tokens": tokens, "total_cost": cost}
         if result is None:
             return {
                 "sufficient": False,
                 "gaps": ["verifier parse error"],
                 "contradictory_claims": [],
-                "weak_claims": list(state.get("weak_claims") or []),
                 **usage_delta,
             }
-        merged_weak = list(dict.fromkeys(
-            (state.get("weak_claims") or []) + result.weak_claims
-        ))
         return {
             "sufficient": result.sufficient,
             "gaps": result.missing_information,
-            "weak_claims": merged_weak,
+            "weak_claims": result.weak_claims,
             "contradictory_claims": result.contradictory_claims,
             **usage_delta,
         }

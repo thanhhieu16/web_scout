@@ -7,6 +7,9 @@ verifier:
 answer:
   model: stealth/ox-alpha
   temperature: 0.3
+judge:
+  model: stealth/ox-alpha
+  temperature: 0.0
 max_iterations: 3
 skills_enabled: true
 search:

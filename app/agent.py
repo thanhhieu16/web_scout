@@ -1,6 +1,6 @@
-from pathlib import Path
+from deepagents import create_deep_agent as _create_deep_agent
 
-from app.config import Settings, get_settings
+from app.config import REPO_ROOT, Settings, get_settings
 from app.models import get_model
 from app.tools.fetch import make_web_fetch
 from app.tools.search_tool import make_web_search
@@ -33,25 +33,24 @@ Output contract — end EVERY final reply with exactly this block:
 
 ## FINDINGS
 - [S1] <one factual claim> | confidence: high|medium|low
-- [S2] <one factual claim> | confidence: high|medium|low
+- [S1][S2] <a claim confirmed by two sources> | confidence: high|medium|low
 
 Where [Sn] refers to the nth URL in the sources you used, counted in the
-order you first used them. One line per claim. No prose inside the block."""
+order you first used them. Cite EVERY source that supports the claim, not
+just the first. One line per claim. No prose inside the block."""
 
 
-def build_research_agent(settings: Settings | None = None):
+def build_research_agent(settings: Settings | None = None, usage=None):
     s = settings or get_settings()
     model = get_model("researcher", s)
     kwargs = dict(
         model=model,
-        tools=[make_web_search(s), make_web_fetch(s.fetch)],
+        tools=[make_web_search(s, usage=usage), make_web_fetch(s.fetch)],
         system_prompt=RESEARCH_SYSTEM_PROMPT,
     )
-    if s.skills_enabled and Path("skills").is_dir():
+    if s.skills_enabled and (REPO_ROOT / "skills").is_dir():
         from deepagents.backends.filesystem import FilesystemBackend
 
-        kwargs["backend"] = FilesystemBackend(root_dir=".")
+        kwargs["backend"] = FilesystemBackend(root_dir=str(REPO_ROOT))
         kwargs["skills"] = ["skills/"]
-    from deepagents import create_deep_agent
-
-    return create_deep_agent(**kwargs)
+    return _create_deep_agent(**kwargs)

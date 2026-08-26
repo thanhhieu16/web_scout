@@ -1,14 +1,15 @@
 import json
-from typing import Callable
+import sys
+from collections.abc import Callable
 
 from app.backoff import call_with_backoff
 from app.config import Settings
 from app.nodes.parsing import (
     build_sources,
     count_total_searches,
+    find_unknown_refs,
     map_refs_to_urls,
     parse_findings_block,
-    reconcile_sources,
     sum_usage,
 )
 from app.state import ResearchState
@@ -38,7 +39,9 @@ def build_research_input(state: ResearchState) -> str:
     return "\n\n".join(parts)
 
 
-def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], dict]:
+def make_research_node(
+    agent, settings: Settings, usage=None
+) -> Callable[[ResearchState], dict]:
     def research(state: ResearchState) -> dict:
         prompt = build_research_input(state)
         result = call_with_backoff(
@@ -48,34 +51,48 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
         )
         messages = result["messages"]
         message = messages[-1]
-        findings, refs, _ = parse_findings_block(str(message.content))
+        parsed = parse_findings_block(str(message.content))
         sources, ref_order = build_sources(messages)
-        findings, _ = map_refs_to_urls(findings, refs, ref_order)
-        _, unknown = reconcile_sources(findings, ref_order)
+        findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
+        unknown = find_unknown_refs(findings, ref_order)
         unknown_set = set(unknown)
         seen_weak: set[str] = set()
         weak: list[str] = []
+
+        def _note(item: str) -> None:
+            if item not in seen_weak:
+                seen_weak.add(item)
+                weak.append(item)
+
+        if not parsed.block_found:
+            _note("research reply had no ## FINDINGS block")
+            print(
+                "[warn] research reply had no ## FINDINGS block",
+                file=sys.stderr,
+                flush=True,
+            )
+        for line in parsed.dropped:
+            _note(f"unparseable FINDINGS line: {line}")
+            print(f"[warn] unparseable FINDINGS line: {line}", file=sys.stderr, flush=True)
         for finding in findings:
             for u in finding.get("source_urls", []):
                 if u in unknown_set and u.startswith("unresolved:"):
-                    item = (
+                    _note(
                         f"claim '{finding.get('claim', '')}' references "
                         f"unknown citation: {u.replace('unresolved:', '[ref] ')}"
                     )
-                    if item not in seen_weak:
-                        seen_weak.add(item)
-                        weak.append(item)
-        prior_weak = state.get("weak_claims") or []
         tokens, cost = sum_usage(messages)
+        tool_tokens, tool_cost, tool_searches = (
+            usage.drain() if usage is not None else (0, 0.0, 0)
+        )
         return {
             "findings": findings,
             "sources": sources,
-            "weak_claims": prior_weak + weak,
-            "iteration": state.get("iteration", 0) + 1,
-            "search_calls": state.get("search_calls", 0)
-            + count_total_searches(messages),
-            "total_tokens": state.get("total_tokens", 0) + tokens,
-            "total_cost": round(state.get("total_cost", 0.0) + cost, 6),
+            "weak_claims": weak,
+            "iteration": 1,
+            "search_calls": count_total_searches(messages) + tool_searches,
+            "total_tokens": tokens + tool_tokens,
+            "total_cost": cost + tool_cost,
         }
 
     return research

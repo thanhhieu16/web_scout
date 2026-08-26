@@ -24,7 +24,12 @@ def test_defaults_when_no_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.researcher.model == "stealth/ox-alpha"
-    assert s.search.model_dump() == {"max_results": 5, "max_uses": 4, "max_characters": 4000}
+    assert s.search.model_dump() == {
+        "max_results": 5,
+        "max_uses": 4,
+        "max_characters": 4000,
+        "timeout_seconds": 30.0,
+    }
 
 
 def test_load_env_file_populates_os_environ(tmp_path, monkeypatch):
@@ -37,3 +42,11 @@ def test_load_env_file_populates_os_environ(tmp_path, monkeypatch):
 
     load_env_file(str(tmp_path / '.env'))
     assert os.environ["LANGSMITH_PROJECT"] == "webscout-test"
+
+
+def test_config_yaml_falls_back_to_repo_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    # repo config.yaml sets skills_enabled: true; the code default is False
+    assert s.skills_enabled is True

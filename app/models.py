@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import RoleConfig, Settings, get_settings
 
-ROLES = ("researcher", "verifier", "answer")
+ROLES = ("researcher", "verifier", "answer", "judge")
 
 
 class ResearchChatOpenAI(ChatOpenAI):
@@ -12,9 +12,11 @@ class ResearchChatOpenAI(ChatOpenAI):
 
     def _get_request_payload(self, *args, **kwargs):
         payload = super()._get_request_payload(*args, **kwargs)
-        tools = list(payload.get("tools") or [])
-        tools.extend(self.server_tools)
-        payload["tools"] = tools
+        tools = list(payload.get("tools") or []) + list(self.server_tools)
+        if tools:
+            payload["tools"] = tools
+        else:
+            payload.pop("tools", None)
         return payload
 
     def _create_chat_result(self, response, generation_info=None):
@@ -53,4 +55,8 @@ def get_model(
         base_url=s.openrouter_base_url,
         max_retries=4,
         timeout=180,
+        # OpenRouter only returns usage.cost when the request asks for accounting.
+        # It must ride in extra_body: the OpenAI SDK's create() has a closed
+        # signature and rejects a top-level `usage` keyword.
+        extra_body={"usage": {"include": True}},
     )

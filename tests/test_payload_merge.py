@@ -31,3 +31,13 @@ def test_payload_merge_keeps_client_and_server_tools():
     assert len(payload["tools"]) == 2
     assert "function" in types
     assert "openrouter:web_search" in types
+
+
+def test_payload_omits_tools_when_none_present():
+    m = ResearchChatOpenAI(
+        model="stealth/ox-alpha",
+        api_key="not-set",
+        base_url="https://openrouter.ai/api/v1",
+    )
+    payload = m._get_request_payload([HumanMessage("hi")])
+    assert "tools" not in payload
