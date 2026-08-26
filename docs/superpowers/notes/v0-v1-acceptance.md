@@ -25,7 +25,7 @@ Kết luận: **V0 PASS**
 | 6 | MAX_ITERATIONS thi hành | Run 3-iteration: sau vòng 3 → answer_with_uncertainty ("Quá trình xác minh đã hết ngân sách...") |
 | 7 | Answer có source refs | [1]..[7] trỏ đúng SOURCES; kết luận ACP merged into A2A (8/2025) có [3][7] |
 | 8 | Mọi model call qua OpenRouter | base_url cố định https://openrouter.ai/api/v1 (models.py); spike usage metadata `provider_name: Stealth` |
-| 9 | Run hiển thị LangSmith | Tracing bật từ .env; xem project webscout trên LangSmith UI |
+| 9 | Run hiển thị LangSmith | Tracing cần export env (`LANGSMITH_TRACING/LANGSMITH_API_KEY`) vào process — các run CLI đầu chạy TRƯỚC khi export nên chưa có trace (đã ghi nhận); batch experiments phía sau chạy với env đầy đủ và chính là bằng chứng connectivity |
 
 Kết luận: **V1 PASS** (tiêu chí 9 cần xác nhận trực quan trên UI bởi stakeholder)
 
