@@ -17,33 +17,7 @@ class ResearchChatOpenAI(ChatOpenAI):
             payload["tools"] = tools
         else:
             payload.pop("tools", None)
-        # Add usage through extra_body to avoid OpenAI SDK parameter validation
-        # while keeping it at top level of payload dict for the test
-        extra_body = payload.get("extra_body") or {}
-        extra_body["usage"] = {"include": True}
-        payload["extra_body"] = extra_body
-        payload["usage"] = {"include": True}
         return payload
-
-    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        # OpenAI SDK validates params and rejects 'usage', but it's valid in extra_body.
-        # _get_request_payload adds usage to both top-level (for tests) and
-        # extra_body (for API). Remove from top-level before validation.
-        import copy
-
-        original_get_payload = self._get_request_payload
-
-        def _get_request_payload_clean(*args, **kw):
-            payload = original_get_payload(*args, **kw)
-            payload = copy.deepcopy(payload)  # Don't mutate original
-            payload.pop("usage", None)  # Remove from top-level, it's in extra_body
-            return payload
-
-        self._get_request_payload = _get_request_payload_clean
-        try:
-            return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
-        finally:
-            self._get_request_payload = original_get_payload
 
     def _create_chat_result(self, response, generation_info=None):
         result = super()._create_chat_result(response, generation_info)
@@ -81,4 +55,8 @@ def get_model(
         base_url=s.openrouter_base_url,
         max_retries=4,
         timeout=180,
+        # OpenRouter only returns usage.cost when the request asks for accounting.
+        # It must ride in extra_body: the OpenAI SDK's create() has a closed
+        # signature and rejects a top-level `usage` keyword.
+        extra_body={"usage": {"include": True}},
     )

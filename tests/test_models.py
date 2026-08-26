@@ -81,7 +81,7 @@ def test_payload_requests_usage_accounting():
     from langchain_core.messages import HumanMessage
 
     payload = get_model("verifier")._get_request_payload([HumanMessage("hi")])
-    assert payload["usage"] == {"include": True}
+    assert payload["extra_body"]["usage"] == {"include": True}
 
 
 @pytest.mark.integration
