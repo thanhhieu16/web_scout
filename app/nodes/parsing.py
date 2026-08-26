@@ -103,6 +103,11 @@ def count_total_searches(messages) -> int:
             total += count_web_searches(message)
         except (TypeError, ValueError):
             continue
+        content = getattr(message, "content", "")
+        if isinstance(content, str):
+            match = re.search(r"(\d+) search executed", content)
+            if match:
+                total += int(match.group(1))
     return total
 
 
@@ -147,8 +152,41 @@ def collect_fetched_sources(messages) -> "list[Source]":
     return out
 
 
+def collect_search_tool_sources(messages) -> "list[Source]":
+    pending: set[str] = set()
+    out: list[Source] = []
+    seen: set[str] = set()
+    block_re = re.compile(r"\[SRC\] (\S+) \| ([^\n]+)(?:\nEXCERPT: ([^\n]+))?")
+    for message in messages:
+        for call in getattr(message, "tool_calls", None) or []:
+            if call.get("name") == "web_search":
+                pending.add(str(call.get("id")))
+        content = getattr(message, "content", "")
+        if isinstance(content, list):
+            content = str(content)
+        if getattr(message, "type", "") == "tool" and str(
+            getattr(message, "tool_call_id", "")
+        ) in pending:
+            pending.discard(str(message.tool_call_id))
+            for match in block_re.finditer(str(content)):
+                url, title, excerpt = match.group(1), match.group(2), match.group(3)
+                if url in seen:
+                    continue
+                seen.add(url)
+                out.append(
+                    Source(
+                        url=url,
+                        title=title.strip(),
+                        source_type="secondary",
+                        excerpt=(excerpt or "").strip()[:500],
+                    )
+                )
+    return out
+
+
 def build_sources(messages) -> "tuple[list[Source], list[dict]]":
     citations = collect_citations(messages)
+    search_tool = collect_search_tool_sources(messages)
     fetched = collect_fetched_sources(messages)
     known: dict[str, Source] = {}
     ordered: list[Source] = []
@@ -164,7 +202,7 @@ def build_sources(messages) -> "tuple[list[Source], list[dict]]":
         )
         known[url] = source
         ordered.append(source)
-    for source in fetched:
+    for source in search_tool + fetched:
         if source["url"] not in known:
             known[source["url"]] = source
             ordered.append(source)
