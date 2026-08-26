@@ -42,8 +42,8 @@ START → research → verify →(insufficient AND iteration < max)→ research
 
 ### Two independent search paths
 
-1. **Server tool** — `build_search_spec` produces the `openrouter:web_search` spec, injected via `server_tools`. Call count lives at `usage.server_tool_use_details.web_search_requests` (docs claim `server_tool_use`; [count_web_searches](app/tools/search.py) reads both).
-2. **Client-side `web_search` tool** ([app/tools/search_tool.py](app/tools/search_tool.py)) — a LangChain tool that makes its own OpenRouter `/chat/completions` request carrying the server-tool spec, then flattens the annotations into `[SRC] url | title` / `EXCERPT:` text blocks. **This is what the agent actually gets** ([build_research_agent](app/agent.py)); the researcher model tended to skip the raw server tool and discover pages via `web_fetch` alone ([v3 notes](docs/superpowers/notes/v3-experiments.md)).
+1. **Server tool** — `build_search_spec` produces the `openrouter:web_search` spec. `ResearchChatOpenAI._get_request_payload` still knows how to inject a model's `server_tools` field onto the wire payload, but `attach_server_tools` (the code that used to populate `server_tools`) was deleted during the `audit-remediation` branch, so this injection path is currently unwired — `server_tools` is permanently `[]`. `build_search_spec` survives only because path 2 below calls it directly. Call count, when this path is wired again, lives at `usage.server_tool_use_details.web_search_requests` (docs claim `server_tool_use`; [count_web_searches](app/tools/search.py) reads both).
+2. **Client-side `web_search` tool** ([app/tools/search_tool.py](app/tools/search_tool.py)) — a LangChain tool that makes its own OpenRouter `/chat/completions` request carrying the `build_search_spec` spec, then flattens the annotations into `[SRC] url | title` / `EXCERPT:` text blocks. **This is what the agent actually gets** ([build_research_agent](app/agent.py)); the researcher model tended to skip the raw server tool and discover pages via `web_fetch` alone ([v3 notes](docs/superpowers/notes/v3-experiments.md)).
 
 ### Sources are reconstructed, never returned
 
@@ -65,7 +65,7 @@ The research prompt ends every reply with a `## FINDINGS` block whose lines are 
 
 pydantic-settings with source order **init kwargs > env > `.env` > `config.yaml`**. `.env` is auto-loaded at import time in [app/config.py](app/config.py). `get_settings()` is `lru_cache`d — tests construct `Settings(_env_file=None)` directly to avoid picking up the developer's real `.env`. Note `skills_enabled` defaults to `False` in code but `true` in `config.yaml`. Swapping models is a one-line `config.yaml` edit (`researcher` / `verifier` / `answer` / `judge` roles).
 
-Every LLM call goes through [call_with_backoff](app/backoff.py) — 5 attempts, linear 20s·n backoff on `OpenAIRateLimitError` only.
+Every LLM call goes through [call_with_backoff](app/backoff.py). Its default is 5 attempts, linear 20s·n backoff, retrying only `OpenAIRateLimitError` — but `retry_on` accepts either a tuple of exception types or a predicate, and callers with a different failure profile pass their own: `web_search` ([app/tools/search_tool.py](app/tools/search_tool.py)) uses `attempts=3, base_delay=2.0` with an HTTP-status predicate, so a hung search fails fast instead of blocking on the LLM-call defaults.
 
 ## Testing conventions
 
@@ -73,6 +73,8 @@ The offline suite must stay network-free. Seams that make that possible:
 
 - Node factories take an optional `model=` — tests pass `GenericFakeChatModel(messages=iter([AIMessage(...)]))`.
 - `make_web_fetch(cfg, transport=...)` and `make_web_search(settings, transport=...)` take an `httpx.MockTransport`.
+- `make_web_fetch(cfg, transport=..., resolve=...)` also takes a fake DNS resolver — this is what keeps the address-guard tests (private/loopback/link-local host rejection, redirect re-checks) network-free. Don't reach for monkeypatching `socket.getaddrinfo` instead; `resolve=` already exists for this.
+- `make_web_search(settings, transport=..., usage=...)`, `build_research_agent(settings, usage=...)`, and `make_research_node(agent, settings, usage=...)` all take an injectable `UsageCollector` so tests can assert on drained tokens/cost/searches without a real HTTP round-trip.
 - `build_graph` looks up `build_research_agent` as a module attribute, so tests `monkeypatch.setattr(g, "build_research_agent", ...)`.
 - Anything needing a key or the live web must carry `@pytest.mark.integration`.
 

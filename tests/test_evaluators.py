@@ -52,7 +52,51 @@ def test_metrics_evaluator_returns_wrapped_results():
     out = metrics_evaluator(run, None)
     assert isinstance(out, dict), "langsmith requires an EvaluationResults mapping"
     keys = {r.key for r in out["results"]}
-    assert keys == {"latency_s", "total_tokens", "search_calls", "num_sources"}
+    assert keys == {"latency_s", "total_tokens", "total_cost", "search_calls", "num_sources"}
+
+
+def test_metrics_evaluator_prefers_outputs_total_tokens_over_run_total_tokens():
+    from types import SimpleNamespace
+
+    from evals.evaluators import metrics_evaluator
+
+    run = SimpleNamespace(
+        inputs={"question": "q"},
+        outputs={
+            "answer": "a",
+            "sources": [{"url": "u"}],
+            "search_calls": 3,
+            "total_tokens": 555,
+            "total_cost": 0.0099,
+        },
+        start_time=None,
+        end_time=None,
+        # run.total_tokens deliberately differs and must lose to outputs["total_tokens"]:
+        # it never sees the web_search tool's own OpenRouter call.
+        total_tokens=99999,
+    )
+    out = metrics_evaluator(run, None)
+    kv = {r.key: r.value for r in out["results"]}
+    assert kv["total_tokens"] == 555
+    assert abs(kv["total_cost"] - 0.0099) < 1e-9
+
+
+def test_metrics_evaluator_falls_back_to_run_total_tokens_when_outputs_lack_it():
+    from types import SimpleNamespace
+
+    from evals.evaluators import metrics_evaluator
+
+    run = SimpleNamespace(
+        inputs={"question": "q"},
+        outputs={"answer": "a", "sources": [{"url": "u"}], "search_calls": 3},
+        start_time=None,
+        end_time=None,
+        total_tokens=777,
+    )
+    out = metrics_evaluator(run, None)
+    kv = {r.key: r.value for r in out["results"]}
+    assert kv["total_tokens"] == 777
+    assert kv["total_cost"] == 0.0
 
 
 def test_citation_support_flags_unresolved_refs():

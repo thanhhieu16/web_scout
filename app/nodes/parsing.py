@@ -11,9 +11,11 @@ _LINE_RE = re.compile(
 )
 _REF_RE = re.compile(r"S\d+", re.IGNORECASE)
 _BLOCK_RE = re.compile(r"^##\s*FINDINGS\s*$", re.IGNORECASE | re.MULTILINE)
-# A line that opens like a finding but fails _LINE_RE is a possibly-lost claim.
-# Anything else after the block is trailing prose, not evidence.
-_ATTEMPTED_RE = re.compile(r"^-\s*\[S\d+\]", re.IGNORECASE)
+# A line that opens like a finding, or carries a confidence marker, but still fails
+# _LINE_RE is a possibly-lost claim (e.g. a claim missing its [Sn] ref entirely).
+# Anything else after the block is trailing prose, not evidence. Deliberately kept
+# independent of _LINE_RE so a change to one doesn't silently narrow the other.
+_ATTEMPTED_RE = re.compile(r"^-\s*\[S\d+\]|\|\s*confidence\s*:", re.IGNORECASE)
 
 
 class FindingsParse(NamedTuple):
@@ -38,7 +40,7 @@ def parse_findings_block(text: str) -> FindingsParse:
             continue
         m = _LINE_RE.match(line)
         if not m:
-            if _ATTEMPTED_RE.match(line):
+            if _ATTEMPTED_RE.search(line):
                 dropped.append(line)
             continue
         findings.append(

@@ -56,6 +56,19 @@ def test_web_search_http_error_returns_search_error(monkeypatch):
     assert out.startswith("SEARCH_ERROR:")
 
 
+def test_web_search_malformed_body_returns_search_error_not_raise():
+    """A 200 with an HTML interstitial (proxy/Cloudflare block page) must not escape as
+    a json.JSONDecodeError — response parsing must sit inside the same error boundary as
+    the HTTP call, exactly like web_fetch's FETCH_ERROR."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>blocked</html>")
+
+    tool = make_web_search(Settings(_env_file=None), transport=httpx.MockTransport(handler))  # type: ignore[call-arg]
+    out = tool.invoke({"query": "q"})
+    assert out.startswith("SEARCH_ERROR:")
+
+
 def test_web_search_no_results_returns_search_error():
     body = {"choices": [{"message": {"role": "assistant", "content": "nothing"}}], "usage": {}}
 

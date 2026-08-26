@@ -1,7 +1,6 @@
 import argparse
 import itertools
 import json
-from functools import lru_cache
 from pathlib import Path
 
 from langsmith import Client
@@ -17,8 +16,12 @@ def load_dataset() -> list[dict]:
     return json.loads(DATASET_PATH.read_text(encoding="utf-8"))
 
 
-@lru_cache(maxsize=1)
 def _graph():
+    # Do NOT wrap this in @lru_cache(maxsize=1). client.evaluate(..., max_concurrency=2)
+    # runs target() for multiple examples concurrently on real threads; a cached, shared
+    # graph means a shared UsageCollector (see app/graph.py), and one example's research
+    # node can drain() another example's in-flight web_search usage. Each example must
+    # build (and tear down) its own graph and collector.
     from app.graph import build_graph
 
     return build_graph()
@@ -36,6 +39,8 @@ def target(inputs: dict) -> dict:
         "answer": s.get("answer", ""),
         "sources": s.get("sources", []),
         "search_calls": s.get("search_calls", 0),
+        "total_tokens": s.get("total_tokens", 0),
+        "total_cost": s.get("total_cost", 0.0),
     }
 
 

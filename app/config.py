@@ -26,6 +26,7 @@ class SearchConfig(BaseModel):
     max_results: int = 5
     max_uses: int = 4
     max_characters: int = 4000
+    timeout_seconds: float = 30.0
 
 
 class FetchConfig(BaseModel):

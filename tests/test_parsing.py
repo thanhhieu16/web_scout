@@ -143,6 +143,20 @@ def test_parse_ignores_trailing_prose_after_block():
     assert parsed.dropped == []
 
 
+def test_parse_reports_dropped_line_with_no_ref_at_all():
+    text = "## FINDINGS\n- Claim without any ref | confidence: high\n"
+    parsed = parse_findings_block(text)
+    assert parsed.findings == []
+    assert parsed.dropped == ["- Claim without any ref | confidence: high"]
+
+
+def test_parse_still_ignores_plain_trailing_prose():
+    text = "## FINDINGS\n- [S1] good claim | confidence: high\n\nHope this helps!\n"
+    parsed = parse_findings_block(text)
+    assert len(parsed.findings) == 1
+    assert parsed.dropped == []
+
+
 def test_parse_accepts_multiple_refs_per_claim():
     text = "## FINDINGS\n- [S1][S2] Cross-checked claim | confidence: high\n"
     parsed = parse_findings_block(text)

@@ -160,7 +160,10 @@ uv run python -m evals.summarize                       # A/B table across arms
 
 Results appear as an experiment in your LangSmith project. `evals.summarize` aggregates the
 skill-on/off × iteration-cap arms into one table; the recorded run lives in
-[`evals/runs/skill-ab-v2.md`](evals/runs/skill-ab-v2.md).
+[`evals/runs/2026-08-26-post-remediation.md`](evals/runs/2026-08-26-post-remediation.md), which
+supersedes [`evals/runs/skill-ab-v2.md`](evals/runs/skill-ab-v2.md) — the research prompt changed
+during the `audit-remediation` branch, so the old baseline's citation shape is no longer
+comparable.
 
 ## Configuration (`config.yaml`)
 
@@ -179,6 +182,7 @@ skill-on/off × iteration-cap arms into one table; the recorded run lives in
 | `search.max_results` | `5` | Results requested per `openrouter:web_search` call |
 | `search.max_uses` | `4` | Cap on `web_search` calls per research turn |
 | `search.max_characters` | `4000` | Max characters kept per search result snippet |
+| `search.timeout_seconds` | `30.0` | HTTP timeout for the `web_search` tool's own OpenRouter request (independent of `fetch.timeout_seconds`) |
 | `fetch.timeout_seconds` | `15.0` | HTTP timeout for `web_fetch` |
 | `fetch.max_chars` | `20000` | Max characters extracted per fetched page |
 | `fetch.user_agent` | `WebScout/0.1 (research agent)` | User-Agent header sent by `web_fetch` |
@@ -196,7 +200,7 @@ variables override YAML where defined (`OPENROUTER_API_KEY`, also accepted as
 app/
   main.py        CLI: run_pipeline (graph), run_question (agent only), markdown report
   graph.py       LangGraph product loop (research -> verify -> answer)
-  state.py       ResearchState TypedDict (counters accumulated by hand)
+  state.py       ResearchState TypedDict (counters accumulated via LangGraph reducers)
   agent.py       Deep Agents research harness
   models.py      ResearchChatOpenAI — OpenRouter-backed chat model
   config.py      pydantic-settings (env + .env + config.yaml)

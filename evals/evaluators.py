@@ -96,9 +96,19 @@ def metrics_evaluator(run, example) -> EvaluationResults:
     latency = 0.0
     if getattr(run, "start_time", None) and getattr(run, "end_time", None):
         latency = (run.end_time - run.start_time).total_seconds()
+    # Prefer the run's own reported total_tokens/total_cost: LangSmith's run.total_tokens
+    # only sees tokens that flowed through LangChain's chat-model instrumentation, which
+    # misses the web_search tool's separate OpenRouter HTTP call (see UsageCollector).
+    # outputs["total_tokens"] / outputs["total_cost"] come from ResearchState via target(),
+    # which does include that usage.
+    if "total_tokens" in outputs:
+        total_tokens = int(outputs.get("total_tokens", 0) or 0)
+    else:
+        total_tokens = int(getattr(run, "total_tokens", 0) or 0)
     values = {
         "latency_s": latency,
-        "total_tokens": int(getattr(run, "total_tokens", 0) or 0),
+        "total_tokens": total_tokens,
+        "total_cost": float(outputs.get("total_cost", 0.0) or 0.0),
         "search_calls": int(outputs.get("search_calls", 0) or 0),
         "num_sources": len(outputs.get("sources") or []),
     }

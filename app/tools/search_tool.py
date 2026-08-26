@@ -35,7 +35,7 @@ def make_web_search(settings: Settings, transport=None, usage=None):
 
         def _post() -> httpx.Response:
             with httpx.Client(
-                transport=transport, timeout=settings.fetch.timeout_seconds * 8
+                transport=transport, timeout=settings.search.timeout_seconds
             ) as client:
                 response = client.post(
                     settings.openrouter_base_url + "/chat/completions",
@@ -49,25 +49,27 @@ def make_web_search(settings: Settings, transport=None, usage=None):
             resp = call_with_backoff(
                 _post, attempts=3, base_delay=2.0, retry_on=_search_retryable
             )
+            data = resp.json()
+            message = (data.get("choices") or [{}])[0].get("message") or {}
+            annotations = message.get("annotations") or []
+            lines = []
+            seen: set[str] = set()
+            for ann in annotations:
+                cite = ann.get("url_citation") if isinstance(ann, dict) else None
+                url = (cite or {}).get("url")
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                title = cite.get("title") or url
+                excerpt = (cite.get("content") or "").replace("\n", " ")[:300]
+                lines.append(f"[SRC] {url} | {title}\nEXCERPT: {excerpt}")
+            totals = data.get("usage") or {}
+            details = (
+                totals.get("server_tool_use_details") or totals.get("server_tool_use") or {}
+            )
+            searches = details.get("web_search_requests", 0) if isinstance(details, dict) else 0
         except Exception as exc:
             return f"SEARCH_ERROR: {type(exc).__name__}: {exc}"
-        data = resp.json()
-        message = (data.get("choices") or [{}])[0].get("message") or {}
-        annotations = message.get("annotations") or []
-        lines = []
-        seen: set[str] = set()
-        for ann in annotations:
-            cite = ann.get("url_citation") if isinstance(ann, dict) else None
-            url = (cite or {}).get("url")
-            if not url or url in seen:
-                continue
-            seen.add(url)
-            title = cite.get("title") or url
-            excerpt = (cite.get("content") or "").replace("\n", " ")[:300]
-            lines.append(f"[SRC] {url} | {title}\nEXCERPT: {excerpt}")
-        totals = data.get("usage") or {}
-        details = totals.get("server_tool_use_details") or totals.get("server_tool_use") or {}
-        searches = details.get("web_search_requests", 0) if isinstance(details, dict) else 0
         if usage is not None:
             usage.add(
                 tokens=totals.get("total_tokens", 0) or 0,

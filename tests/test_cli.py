@@ -66,6 +66,18 @@ def test_run_question_collects_citations_across_messages():
     assert out["search_calls"] == 2
 
 
+def test_run_question_uses_injected_usage_collector():
+    """When an agent is injected, run_question must not build its own orphaned
+    UsageCollector wired to nothing (drain() always zeros) — a caller that also
+    built the agent should be able to pass the same collector the agent uses."""
+    from app.usage import UsageCollector
+
+    usage = UsageCollector()
+    usage.add(tokens=42, cost=0.01, searches=2)
+    out = run_question("So sánh?", agent=FakeAgent(), usage=usage)
+    assert out["search_calls"] == 2
+
+
 @pytest.mark.integration
 def test_cli_real_roundtrip():
     import os

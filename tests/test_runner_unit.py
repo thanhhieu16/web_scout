@@ -15,13 +15,25 @@ def test_load_dataset_shape():
 def test_target_maps_outputs(monkeypatch):
     class FakeCompiled:
         def invoke(self, state):
-            return {"answer": "A", "sources": [{"url": "u"}], "search_calls": 5}
+            return {
+                "answer": "A",
+                "sources": [{"url": "u"}],
+                "search_calls": 5,
+                "total_tokens": 4321,
+                "total_cost": 0.0123,
+            }
 
     import evals.run_evals as mod
 
     monkeypatch.setattr(mod, "_graph", lambda: FakeCompiled())
     out = target({"question": "q"})
-    assert out == {"answer": "A", "sources": [{"url": "u"}], "search_calls": 5}
+    assert out == {
+        "answer": "A",
+        "sources": [{"url": "u"}],
+        "search_calls": 5,
+        "total_tokens": 4321,
+        "total_cost": 0.0123,
+    }
 
 
 def test_run_evals_main_fails_fast_without_api_key(monkeypatch):

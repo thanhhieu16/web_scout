@@ -24,9 +24,10 @@ def require_openrouter_key(settings=None) -> None:
         )
 
 
-def run_question(question: str, agent=None, settings=None) -> dict:
+def run_question(question: str, agent=None, settings=None, usage=None) -> dict:
     s = settings or get_settings()
-    usage = UsageCollector()
+    if usage is None:
+        usage = UsageCollector()
     deep = agent or build_research_agent(s, usage=usage)
     result = deep.invoke(
         {"messages": [{"role": "user", "content": question}]},
