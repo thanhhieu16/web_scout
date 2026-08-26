@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from evals.run_evals import load_dataset, target
 
 

@@ -138,7 +138,6 @@ tests/           unit suite (+ integration marker)
 
 - Design spec: [`docs/superpowers/specs/2026-08-25-webscout-design.md`](docs/superpowers/specs/2026-08-25-webscout-design.md)
 - Implementation plan: [`docs/superpowers/plans/2026-08-25-webscout-v0-v3.md`](docs/superpowers/plans/2026-08-25-webscout-v0-v3.md)
-- Working notes / progress log: [`.superpowers/sdd/2026-08-25-webscout-v0-v3/progress.md`](.superpowers/sdd/2026-08-25-webscout-v0-v3/progress.md)
 
 ## Troubleshooting
 

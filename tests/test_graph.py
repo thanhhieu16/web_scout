@@ -1,5 +1,3 @@
-import pytest
-
 from app.graph import route_after_verify
 
 
