@@ -22,6 +22,7 @@ tracing and evals on **LangSmith**.
 - **A verifier that can say "not yet"** — insufficient evidence sends the graph back for another research pass, up to `max_iterations`.
 - **Citations reconstructed, not trusted** — every `[n]` in the answer is reconciled against URLs the agent actually retrieved.
 - **Real reading, not just snippets** — `web_fetch` streams pages under a byte cap and extracts article text with trafilatura.
+- **Guarded fetching** — `web_fetch` refuses non-HTTP schemes and any host resolving to a private, loopback, or link-local address, re-checking on every redirect hop.
 - **Budget visible on every run** — iterations, searches, sources, tokens and estimated cost printed as a METRICS line.
 - **Offline-testable** — the pipeline has injection seams throughout, so the default suite runs with no network and no API key.
 
@@ -180,6 +181,8 @@ skill-on/off × iteration-cap arms into one table; the recorded run lives in
 | `fetch.max_chars` | `20000` | Max characters extracted per fetched page |
 | `fetch.user_agent` | `WebScout/0.1 (research agent)` | User-Agent header sent by `web_fetch` |
 | `fetch.max_download_bytes` | `2000000` | Cap on bytes downloaded per fetch before extraction |
+| `fetch.max_redirects` | `5` | Redirect hops followed, each re-checked against the address guard |
+| `fetch.allow_private_hosts` | `false` | Set true only to fetch from localhost or a private network during development |
 
 Swapping models is a one-line edit to the `researcher` / `verifier` / `answer` roles. Environment
 variables override YAML where defined (`OPENROUTER_API_KEY`, also accepted as

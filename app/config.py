@@ -33,6 +33,8 @@ class FetchConfig(BaseModel):
     max_chars: int = 20000
     user_agent: str = "WebScout/0.1 (research agent)"
     max_download_bytes: int = 2_000_000
+    max_redirects: int = 5
+    allow_private_hosts: bool = False
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

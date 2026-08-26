@@ -45,7 +45,9 @@ def test_web_search_formats_annotations():
     assert "EXCERPT: useful x content" in out
 
 
-def test_web_search_http_error_returns_search_error():
+def test_web_search_http_error_returns_search_error(monkeypatch):
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, text="boom")
 
@@ -158,3 +160,22 @@ def test_web_search_body_requests_usage_accounting():
     )
     tool.invoke({"query": "q"})
     assert captured["usage"] == {"include": True}
+
+
+def test_web_search_retries_transient_500(monkeypatch):
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return httpx.Response(503, text="unavailable")
+        return httpx.Response(200, json=_ok_response_body())
+
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+    )
+    out = tool.invoke({"query": "q"})
+    assert out.startswith("SEARCH_RESULTS")
+    assert calls["n"] == 2

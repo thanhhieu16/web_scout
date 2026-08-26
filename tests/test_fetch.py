@@ -8,6 +8,10 @@ from app.tools.fetch import clean_html, make_web_fetch
 FIXTURE = Path(__file__).parent / "fixtures" / "page.html"
 
 
+def _public_resolver(host):
+    return ["93.184.216.34"]
+
+
 def test_clean_html_extracts_article_text():
     html = FIXTURE.read_text(encoding="utf-8")
     text = clean_html(html, max_chars=5000)
@@ -40,7 +44,9 @@ def test_tool_rejects_content_length_over_cap():
             headers={"content-length": "5000000", "content-type": "text/html"},
         )
 
-    tool = make_web_fetch(FetchConfig(), transport=httpx.MockTransport(handler))
+    tool = make_web_fetch(
+        FetchConfig(), transport=httpx.MockTransport(handler), resolve=_public_resolver
+    )
     out = tool.invoke({"url": "https://hostile.example/big"})
     assert out.startswith("FETCH_ERROR")
     assert "max_download_bytes" in out
@@ -56,7 +62,9 @@ def test_tool_rejects_streamed_body_over_cap():
 
         return httpx.Response(200, content=gen(), headers={"content-type": "text/html"})
 
-    tool = make_web_fetch(FetchConfig(), transport=httpx.MockTransport(handler))
+    tool = make_web_fetch(
+        FetchConfig(), transport=httpx.MockTransport(handler), resolve=_public_resolver
+    )
     out = tool.invoke({"url": "https://hostile.example/stream"})
     assert out.startswith("FETCH_ERROR")
     assert "max_download_bytes" in out
@@ -71,9 +79,11 @@ def test_tool_extracts_small_page_via_mock_transport():
     )
 
     def handler(request):
-        return httpx.Response(200, text=html)
+        return httpx.Response(200, text=html, headers={"content-type": "text/html"})
 
-    tool = make_web_fetch(FetchConfig(), transport=httpx.MockTransport(handler))
+    tool = make_web_fetch(
+        FetchConfig(), transport=httpx.MockTransport(handler), resolve=_public_resolver
+    )
     out = tool.invoke({"url": "https://ok.example/page"})
     assert out.startswith("FETCH_ERROR") is False
     assert "WebScout fetch cap check" in out
