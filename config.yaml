@@ -8,7 +8,7 @@ answer:
   model: stealth/ox-alpha
   temperature: 0.3
 max_iterations: 3
-skills_enabled: false
+skills_enabled: true
 search:
   max_results: 5
   max_uses: 4
