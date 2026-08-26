@@ -7,9 +7,11 @@ from app.backoff import call_with_backoff
 
 
 def _rate_limit():
+    request = SimpleNamespace(method="POST", url="https://openrouter.ai/api/v1/chat/completions", headers={})
+    response = SimpleNamespace(status_code=429, headers={}, request=request)
     return OpenAIRateLimitError(
         "Error code: 429 - rate limited",
-        response=SimpleNamespace(status_code=429, headers={}),
+        response=response,
         body={"error": {"code": 429}},
     )
 
