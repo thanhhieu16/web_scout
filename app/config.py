@@ -39,14 +39,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _yaml_path() -> str:
-    """Prefer ./config.yaml so a local override wins; fall back to the repo's own."""
-    local = Path("config.yaml")
+    """Prefer ./config.yaml so a local override wins; fall back to the repo's own.
+
+    Both branches return an absolute path so the result is never re-resolved
+    against a *different* CWD later. It must also be called fresh at each
+    Settings() construction (see settings_customise_sources below) rather than
+    read once off model_config: a plain class attribute is fixed at class-body
+    execution (module import) time, so a chdir before Settings() is constructed
+    would otherwise be invisible to it.
+    """
+    local = Path("config.yaml").resolve()
     return str(local if local.is_file() else REPO_ROOT / "config.yaml")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
+        # Superseded per-instantiation in settings_customise_sources below;
+        # this is only a static fallback for introspection of model_config itself.
         yaml_file=_yaml_path(),
         extra="ignore",
     )
@@ -79,7 +89,7 @@ class Settings(BaseSettings):
             init_settings,
             env_settings,
             dotenv_settings,
-            YamlConfigSettingsSource(settings_cls),
+            YamlConfigSettingsSource(settings_cls, yaml_file=_yaml_path()),
             file_secret_settings,
         )
 
