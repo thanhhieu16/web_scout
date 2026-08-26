@@ -20,12 +20,14 @@ def _usage_of(result: Any) -> dict:
     if isinstance(result, dict):
         return result.get("usage") or {}
     meta = getattr(result, "response_metadata", None) or {}
-    return meta.get("usage") or {}
+    return meta.get("usage") or meta.get("token_usage") or {}
 
 
 def count_web_searches(result: Any) -> int:
     usage = _usage_of(result)
-    stu = usage.get("server_tool_use") if isinstance(usage, dict) else None
+    if not isinstance(usage, dict):
+        return 0
+    stu = usage.get("server_tool_use") or usage.get("server_tool_use_details")
     value = stu.get("web_search_requests", 0) if isinstance(stu, dict) else 0
     try:
         return int(value)

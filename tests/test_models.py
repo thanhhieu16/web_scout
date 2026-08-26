@@ -27,3 +27,43 @@ def test_invalid_role_raises():
 
     with pytest.raises(ValueError):
         get_model("nonexistent", _settings())
+
+
+def test_research_chat_openai_forces_chat_completions():
+    from app.models import ResearchChatOpenAI
+
+    m = ResearchChatOpenAI(api_key="k", base_url="https://x")
+    assert m.use_responses_api is False
+
+
+def test_create_chat_result_lifts_annotations():
+    from langchain_core.messages import AIMessage
+
+    from app.models import ResearchChatOpenAI
+
+    m = ResearchChatOpenAI(api_key="k", base_url="https://x")
+    response = {
+        "id": "gen-1",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {
+                    "role": "assistant",
+                    "content": "hello",
+                    "annotations": [
+                        {
+                            "type": "url_citation",
+                            "url_citation": {"url": "https://a.dev", "title": "A", "content": "ca"},
+                        }
+                    ],
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    }
+    result = m._create_chat_result(response)
+    msg = result.generations[0].message
+    assert isinstance(msg, AIMessage)
+    anns = msg.additional_kwargs["annotations"]
+    assert anns[0]["url_citation"]["url"] == "https://a.dev"

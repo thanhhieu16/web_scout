@@ -26,3 +26,23 @@ def test_count_from_message_response_metadata():
 def test_count_missing_is_zero():
     assert count_web_searches({"usage": {}}) == 0
     assert count_web_searches(None) == 0
+
+
+def test_count_from_server_tool_use_details_key():
+    msg = SimpleNamespace(
+        response_metadata={
+            "token_usage": {"server_tool_use_details": {"web_search_requests": 5}}
+        },
+        additional_kwargs={},
+    )
+    assert count_web_searches(msg) == 5
+
+
+def test_usage_fallback_to_token_usage():
+    from app.tools.search import count_web_searches as c
+
+    msg = SimpleNamespace(
+        response_metadata={"token_usage": {"server_tool_use": {"web_search_requests": 7}}},
+        additional_kwargs={},
+    )
+    assert c(msg) == 7
