@@ -1,11 +1,19 @@
 from functools import lru_cache
 
+from dotenv import load_dotenv
 from pydantic import AliasChoices, BaseModel, Field
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
     YamlConfigSettingsSource,
 )
+
+
+def load_env_file(env_path: str | None = None) -> None:
+    load_dotenv(dotenv_path=env_path)
+
+
+load_env_file()
 
 
 class RoleConfig(BaseModel):

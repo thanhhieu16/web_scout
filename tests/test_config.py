@@ -25,3 +25,15 @@ def test_defaults_when_no_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.researcher.model == "stealth/ox-alpha"
     assert s.search.model_dump() == {"max_results": 5, "max_uses": 4, "max_characters": 4000}
+
+
+def test_load_env_file_populates_os_environ(tmp_path, monkeypatch):
+    import os
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("LANGSMITH_PROJECT=webscout-test\n", encoding="utf-8")
+    monkeypatch.delenv("LANGSMITH_PROJECT", raising=False)
+    from app.config import load_env_file
+
+    load_env_file(str(tmp_path / '.env'))
+    assert os.environ["LANGSMITH_PROJECT"] == "webscout-test"
