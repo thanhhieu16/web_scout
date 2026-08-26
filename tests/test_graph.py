@@ -22,6 +22,6 @@ def test_route_budget_exhausted_goes_answer():
 def test_build_graph_compiles(monkeypatch):
     import app.graph as g
 
-    monkeypatch.setattr(g, "build_research_agent", lambda s=None: object())
+    monkeypatch.setattr(g, "build_research_agent", lambda *a, **k: object())
     compiled = g.build_graph()
     assert compiled is not None

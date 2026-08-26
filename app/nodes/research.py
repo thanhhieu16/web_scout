@@ -39,7 +39,9 @@ def build_research_input(state: ResearchState) -> str:
     return "\n\n".join(parts)
 
 
-def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], dict]:
+def make_research_node(
+    agent, settings: Settings, usage=None
+) -> Callable[[ResearchState], dict]:
     def research(state: ResearchState) -> dict:
         prompt = build_research_input(state)
         result = call_with_backoff(
@@ -80,14 +82,17 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
                         f"unknown citation: {u.replace('unresolved:', '[ref] ')}"
                     )
         tokens, cost = sum_usage(messages)
+        tool_tokens, tool_cost, tool_searches = (
+            usage.drain() if usage is not None else (0, 0.0, 0)
+        )
         return {
             "findings": findings,
             "sources": sources,
             "weak_claims": weak,
             "iteration": 1,
-            "search_calls": count_total_searches(messages),
-            "total_tokens": tokens,
-            "total_cost": cost,
+            "search_calls": count_total_searches(messages) + tool_searches,
+            "total_tokens": tokens + tool_tokens,
+            "total_cost": cost + tool_cost,
         }
 
     return research

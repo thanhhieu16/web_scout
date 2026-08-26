@@ -112,17 +112,14 @@ def collect_citations(messages) -> list[dict]:
 
 
 def count_total_searches(messages) -> int:
+    """Counts only server-tool usage reported in message metadata. Searches made
+    by the client-side web_search tool arrive through UsageCollector instead."""
     total = 0
     for message in messages:
         try:
             total += count_web_searches(message)
         except (TypeError, ValueError):
             continue
-        content = getattr(message, "content", "")
-        if isinstance(content, str):
-            match = re.search(r"(\d+) search executed", content)
-            if match:
-                total += int(match.group(1))
     return total
 
 

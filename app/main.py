@@ -13,6 +13,7 @@ from app.nodes.parsing import (
     parse_findings_block,
     reconcile_sources,
 )
+from app.usage import UsageCollector
 
 
 def require_openrouter_key(settings=None) -> None:
@@ -25,7 +26,8 @@ def require_openrouter_key(settings=None) -> None:
 
 def run_question(question: str, agent=None, settings=None) -> dict:
     s = settings or get_settings()
-    deep = agent or build_research_agent(s)
+    usage = UsageCollector()
+    deep = agent or build_research_agent(s, usage=usage)
     result = deep.invoke(
         {"messages": [{"role": "user", "content": question}]},
         config={"recursion_limit": 50},
@@ -36,7 +38,8 @@ def run_question(question: str, agent=None, settings=None) -> dict:
     sources, ref_order = build_sources(messages)
     findings, _ = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
     _, unknown = reconcile_sources(findings, ref_order)
-    searches = count_total_searches(messages)
+    _, _, tool_searches = usage.drain()
+    searches = count_total_searches(messages) + tool_searches
     if unknown:
         print(f"[warn] {len(unknown)} uncited URL(s) ignored", file=sys.stderr)
     return {

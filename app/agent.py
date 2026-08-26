@@ -40,12 +40,12 @@ order you first used them. Cite EVERY source that supports the claim, not
 just the first. One line per claim. No prose inside the block."""
 
 
-def build_research_agent(settings: Settings | None = None):
+def build_research_agent(settings: Settings | None = None, usage=None):
     s = settings or get_settings()
     model = get_model("researcher", s)
     kwargs = dict(
         model=model,
-        tools=[make_web_search(s), make_web_fetch(s.fetch)],
+        tools=[make_web_search(s, usage=usage), make_web_fetch(s.fetch)],
         system_prompt=RESEARCH_SYSTEM_PROMPT,
     )
     if s.skills_enabled and (REPO_ROOT / "skills").is_dir():

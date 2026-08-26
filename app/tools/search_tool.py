@@ -5,7 +5,7 @@ from app.config import Settings
 from app.tools.search import build_search_spec
 
 
-def make_web_search(settings: Settings, transport=None):
+def make_web_search(settings: Settings, transport=None, usage=None):
     @tool
     def web_search(query: str) -> str:
         """Search the web for current information. Returns titled results with URLs and excerpts."""
@@ -52,12 +52,16 @@ def make_web_search(settings: Settings, transport=None):
             lines.append(f"[SRC] {url} | {title}\nEXCERPT: {excerpt}")
         if not lines:
             return "SEARCH_ERROR: no results returned"
-        usage = data.get("usage") or {}
-        details = usage.get("server_tool_use_details") or {}
-        searches = details.get("web_search_requests", 0)
-        header = (
-            f"SEARCH_RESULTS ({len(lines)} results, {searches} search executed):"
-        )
+        totals = data.get("usage") or {}
+        details = totals.get("server_tool_use_details") or totals.get("server_tool_use") or {}
+        searches = details.get("web_search_requests", 0) if isinstance(details, dict) else 0
+        if usage is not None:
+            usage.add(
+                tokens=totals.get("total_tokens", 0) or 0,
+                cost=totals.get("cost", 0.0) or 0.0,
+                searches=searches,
+            )
+        header = f"SEARCH_RESULTS ({len(lines)} results, {searches} search executed):"
         return header + "\n\n" + "\n\n".join(lines)
 
     return web_search

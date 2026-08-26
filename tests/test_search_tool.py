@@ -94,3 +94,26 @@ def test_collect_search_tool_sources_ignores_unrelated_tools():
         ToolMessage(content="[SRC] https://noisy.dev | N\nEXCERPT: x", tool_call_id="f1"),
     ]
     assert collect_search_tool_sources(messages) == []
+
+
+def test_web_search_records_usage():
+    from app.usage import UsageCollector
+
+    body = _ok_response_body()
+    body["usage"]["total_tokens"] = 900
+    body["usage"]["cost"] = 0.0042
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    collector = UsageCollector()
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+        usage=collector,
+    )
+    tool.invoke({"query": "q"})
+    tokens, cost, searches = collector.drain()
+    assert tokens == 900
+    assert abs(cost - 0.0042) < 1e-9
+    assert searches == 1

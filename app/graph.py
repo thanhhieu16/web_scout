@@ -8,6 +8,7 @@ from app.nodes.answer import make_answer_node
 from app.nodes.research import make_research_node
 from app.nodes.verify import make_verify_node
 from app.state import ResearchState
+from app.usage import UsageCollector
 
 
 def route_after_verify(
@@ -22,9 +23,10 @@ def route_after_verify(
 
 def build_graph(settings=None):
     s = settings or get_settings()
-    agent = build_research_agent(s)
+    usage = UsageCollector()
+    agent = build_research_agent(s, usage=usage)
     graph = StateGraph(ResearchState)
-    graph.add_node("research", make_research_node(agent, s))
+    graph.add_node("research", make_research_node(agent, s, usage=usage))
     graph.add_node("verify", make_verify_node(s))
     graph.add_node("answer", make_answer_node(s))
     graph.add_edge(START, "research")
