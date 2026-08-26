@@ -50,8 +50,6 @@ def make_web_search(settings: Settings, transport=None, usage=None):
             title = cite.get("title") or url
             excerpt = (cite.get("content") or "").replace("\n", " ")[:300]
             lines.append(f"[SRC] {url} | {title}\nEXCERPT: {excerpt}")
-        if not lines:
-            return "SEARCH_ERROR: no results returned"
         totals = data.get("usage") or {}
         details = totals.get("server_tool_use_details") or totals.get("server_tool_use") or {}
         searches = details.get("web_search_requests", 0) if isinstance(details, dict) else 0
@@ -61,6 +59,8 @@ def make_web_search(settings: Settings, transport=None, usage=None):
                 cost=totals.get("cost", 0.0) or 0.0,
                 searches=searches,
             )
+        if not lines:
+            return "SEARCH_ERROR: no results returned"
         header = f"SEARCH_RESULTS ({len(lines)} results, {searches} search executed):"
         return header + "\n\n" + "\n\n".join(lines)
 

@@ -117,3 +117,27 @@ def test_web_search_records_usage():
     assert tokens == 900
     assert abs(cost - 0.0042) < 1e-9
     assert searches == 1
+
+
+def test_web_search_records_usage_even_with_no_results():
+    from app.usage import UsageCollector
+
+    body = {
+        "choices": [{"message": {"role": "assistant", "content": "nothing"}}],
+        "usage": {"total_tokens": 120, "cost": 0.0008},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=body)
+
+    collector = UsageCollector()
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+        usage=collector,
+    )
+    out = tool.invoke({"query": "q"})
+    assert out == "SEARCH_ERROR: no results returned"
+    tokens, cost, _ = collector.drain()
+    assert tokens == 120
+    assert abs(cost - 0.0008) < 1e-9
