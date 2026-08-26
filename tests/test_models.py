@@ -84,6 +84,11 @@ def test_payload_requests_usage_accounting():
     assert payload["extra_body"]["usage"] == {"include": True}
 
 
+def test_judge_role_is_valid():
+    m = get_model("judge", _settings())
+    assert m.model_name
+
+
 @pytest.mark.integration
 def test_cost_present_in_response_metadata():
     import os

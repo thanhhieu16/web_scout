@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import RoleConfig, Settings, get_settings
 
-ROLES = ("researcher", "verifier", "answer")
+ROLES = ("researcher", "verifier", "answer", "judge")
 
 
 class ResearchChatOpenAI(ChatOpenAI):

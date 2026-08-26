@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     researcher: RoleConfig = RoleConfig(temperature=0.2)
     verifier: RoleConfig = RoleConfig(temperature=0.0)
     answer: RoleConfig = RoleConfig(temperature=0.3)
+    judge: RoleConfig = RoleConfig(temperature=0.0)
 
     max_iterations: int = 3
     skills_enabled: bool = False

@@ -172,6 +172,8 @@ skill-on/off × iteration-cap arms into one table; the recorded run lives in
 | `verifier.temperature` | `0.0` | Verifier temperature (deterministic) |
 | `answer.model` | `stealth/ox-alpha` | Model writing the final narrative |
 | `answer.temperature` | `0.3` | Answer temperature |
+| `judge.model` | `stealth/ox-alpha` | Model grading eval runs — swap it off the model under test to avoid self-grading |
+| `judge.temperature` | `0.0` | Judge temperature (deterministic) |
 | `max_iterations` | `3` | Max research → verify loops before forcing an answer |
 | `skills_enabled` | `true` | Attach the `web-research` methodology skill to the agent |
 | `search.max_results` | `5` | Results requested per `openrouter:web_search` call |
@@ -184,7 +186,7 @@ skill-on/off × iteration-cap arms into one table; the recorded run lives in
 | `fetch.max_redirects` | `5` | Redirect hops followed, each re-checked against the address guard |
 | `fetch.allow_private_hosts` | `false` | Set true only to fetch from localhost or a private network during development |
 
-Swapping models is a one-line edit to the `researcher` / `verifier` / `answer` roles. Environment
+Swapping models is a one-line edit to the `researcher` / `verifier` / `answer` / `judge` roles. Environment
 variables override YAML where defined (`OPENROUTER_API_KEY`, also accepted as
 `WEBSCOUT_OPENROUTER_API_KEY`); `openrouter_base_url` defaults to `https://openrouter.ai/api/v1`.
 

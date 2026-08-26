@@ -38,7 +38,7 @@ START → research → verify →(insufficient AND iteration < max)→ research
 
 - `use_responses_api = False` is **required**. langchain-openai auto-routes to the Responses API when the payload carries a non-`function` tool type, which then crashes with `responses.create(messages=...)`.
 - `_create_chat_result` lifts OpenRouter's `choices[0].message.annotations` into `additional_kwargs["annotations"]`, because langchain-openai drops that field. Every URL citation in the pipeline flows through this lift.
-- `_get_request_payload` appends `server_tools` to the wire payload (used by `attach_server_tools`), instead of `extra_body={"tools": ...}` which would overwrite `bind_tools` output.
+- `_get_request_payload` appends the model's `server_tools` field to the wire payload, instead of `extra_body={"tools": ...}` which would overwrite `bind_tools` output.
 
 ### Two independent search paths
 
@@ -63,7 +63,7 @@ The research prompt ends every reply with a `## FINDINGS` block whose lines are 
 
 ### Config
 
-pydantic-settings with source order **init kwargs > env > `.env` > `config.yaml`**. `.env` is auto-loaded at import time in [app/config.py](app/config.py). `get_settings()` is `lru_cache`d — tests construct `Settings(_env_file=None)` directly to avoid picking up the developer's real `.env`. Note `skills_enabled` defaults to `False` in code but `true` in `config.yaml`. Swapping models is a one-line `config.yaml` edit (`researcher` / `verifier` / `answer` roles).
+pydantic-settings with source order **init kwargs > env > `.env` > `config.yaml`**. `.env` is auto-loaded at import time in [app/config.py](app/config.py). `get_settings()` is `lru_cache`d — tests construct `Settings(_env_file=None)` directly to avoid picking up the developer's real `.env`. Note `skills_enabled` defaults to `False` in code but `true` in `config.yaml`. Swapping models is a one-line `config.yaml` edit (`researcher` / `verifier` / `answer` / `judge` roles).
 
 Every LLM call goes through [call_with_backoff](app/backoff.py) — 5 attempts, linear 20s·n backoff on `OpenAIRateLimitError` only.
 
