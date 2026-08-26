@@ -130,7 +130,7 @@ The answer follows the language of the question.
 ```powershell
 uv run pytest -m "not integration"    # offline suite — no network, no key (this is what CI runs)
 uv run pytest -m integration          # hits OpenRouter and the live web
-uv run pytest tests/test_node_verify.py::test_verify_merges_result   # a single test
+uv run pytest tests/test_node_verify.py::test_verify_returns_own_weak_claims_only   # a single test
 ```
 
 Integration tests need a key in the environment:

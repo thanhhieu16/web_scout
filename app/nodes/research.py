@@ -65,17 +65,15 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
                     if item not in seen_weak:
                         seen_weak.add(item)
                         weak.append(item)
-        prior_weak = state.get("weak_claims") or []
         tokens, cost = sum_usage(messages)
         return {
             "findings": findings,
             "sources": sources,
-            "weak_claims": prior_weak + weak,
-            "iteration": state.get("iteration", 0) + 1,
-            "search_calls": state.get("search_calls", 0)
-            + count_total_searches(messages),
-            "total_tokens": state.get("total_tokens", 0) + tokens,
-            "total_cost": round(state.get("total_cost", 0.0) + cost, 6),
+            "weak_claims": weak,
+            "iteration": 1,
+            "search_calls": count_total_searches(messages),
+            "total_tokens": tokens,
+            "total_cost": cost,
         }
 
     return research

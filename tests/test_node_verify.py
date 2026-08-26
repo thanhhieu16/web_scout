@@ -21,16 +21,17 @@ STATE = {
 }
 
 
-def test_verify_merges_result():
+def test_verify_returns_own_weak_claims_only():
     payload = (
         '{"sufficient": false, "missing_information": ["replay"], '
-        '"weak_claims": ["old weak", "new weak"], "contradictory_claims": []}'
+        '"weak_claims": ["new weak"], "contradictory_claims": []}'
     )
     node = make_verify_node(Settings(_env_file=None), model=_fake_model(payload))  # type: ignore[call-arg]
     delta = node(dict(STATE))
     assert delta["sufficient"] is False
     assert delta["gaps"] == ["replay"]
-    assert delta["weak_claims"] == ["old weak", "new weak"]
+    assert delta["weak_claims"] == ["new weak"]
+    assert "old weak" not in delta["weak_claims"]
 
 
 def test_verify_sufficient_clears_gaps():
@@ -69,7 +70,6 @@ def test_verify_degrades_after_failed_retry(capsys):
         "sufficient": False,
         "gaps": ["verifier parse error"],
         "contradictory_claims": [],
-        "weak_claims": ["old weak"],
         "total_tokens": 0,
         "total_cost": 0.0,
     }

@@ -51,8 +51,8 @@ def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState]
         tokens, cost = sum_usage([reply])
         return {
             "answer": str(reply.content).strip(),
-            "total_tokens": state.get("total_tokens", 0) + tokens,
-            "total_cost": round(state.get("total_cost", 0.0) + cost, 6),
+            "total_tokens": tokens,
+            "total_cost": cost,
         }
 
     return answer

@@ -13,7 +13,7 @@ uv run webscout "q" --out report.md            # + markdown report
 
 uv run pytest -m "not integration"             # offline suite (what CI runs)
 uv run pytest -m integration                   # hits OpenRouter + live web
-uv run pytest tests/test_node_verify.py::test_verify_merges_result   # single test
+uv run pytest tests/test_node_verify.py::test_verify_returns_own_weak_claims_only   # single test
 
 uv run python -m evals.run_evals --limit 2     # LangSmith eval (needs LANGSMITH_API_KEY)
 uv run python -m evals.summarize               # A/B arm table from LangSmith projects
@@ -53,9 +53,13 @@ The agent returns only prose. [build_sources](app/nodes/parsing.py) rebuilds the
 
 The research prompt ends every reply with a `## FINDINGS` block whose lines are parsed by strict regex in [parse_findings_block](app/nodes/parsing.py) (`- [Sn] claim | confidence: high|medium|low`). `map_refs_to_urls` then resolves `Sn` to the nth URL from `build_sources`; unresolvable refs become `unresolved:Sn` and are surfaced as `weak_claims` by the research node. **`RESEARCH_SYSTEM_PROMPT`, `_LINE_RE`, and `map_refs_to_urls` must change together.**
 
-### State accumulation is manual
+### State accumulation runs through reducers
 
-[ResearchState](app/state.py) is a plain `TypedDict` with **no reducers**. Cumulative fields (`iteration`, `search_calls`, `total_tokens`, `total_cost`, `weak_claims`) are summed by hand in each node: read `state.get(k, 0)`, add the delta, return the total. A node that returns only its own delta silently resets the counter.
+[ResearchState](app/state.py) is a `TypedDict` whose cumulative fields carry `Annotated[..., reducer]`: `findings` (`merge_findings`), `sources` (`merge_sources`), `weak_claims` (`merge_weak_claims`), and `iteration` / `search_calls` / `total_tokens` / `total_cost` (`operator.add`). **Nodes return only their own delta** — returning a running total would double-count it.
+
+`merge_sources` dedupes by url with first-occurrence order, which is what keeps `[Sn]` numbering stable once a second research iteration runs. `merge_findings` dedupes by normalized claim text and takes the *lower* confidence on a merge: iteration 2 is instructed to research gaps only, so a repeated claim is not independent confirmation.
+
+`gaps`, `sufficient`, `contradictory_claims`, and `answer` deliberately have no reducer — they are the current verdict, not a ledger.
 
 ### Config
 
