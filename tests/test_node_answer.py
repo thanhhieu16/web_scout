@@ -2,7 +2,7 @@ from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 
 from app.config import Settings
-from app.nodes.answer import make_answer_node
+from app.nodes.answer import ANSWER_SYSTEM_PROMPT, make_answer_node
 
 
 def _node_with(reply: str):
@@ -59,5 +59,4 @@ def test_uncertainty_requested_when_budget_exhausted():
 
 
 def test_language_rule_present():
-    node = _node_with("ok")
-    assert callable(node)
+    assert "same language as the question" in ANSWER_SYSTEM_PROMPT

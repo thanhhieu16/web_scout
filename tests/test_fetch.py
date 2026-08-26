@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import httpx
+
 from app.config import FetchConfig
 from app.tools.fetch import clean_html, make_web_fetch
 
@@ -29,3 +31,50 @@ def test_tool_returns_error_for_unreachable_host():
     tool = make_web_fetch(FetchConfig(timeout_seconds=2.0))
     out = tool.invoke({"url": "http://127.0.0.1:9/nope"})
     assert out.startswith("FETCH_ERROR")
+
+
+def test_tool_rejects_content_length_over_cap():
+    def handler(request):
+        return httpx.Response(
+            200,
+            headers={"content-length": "5000000", "content-type": "text/html"},
+        )
+
+    tool = make_web_fetch(FetchConfig(), transport=httpx.MockTransport(handler))
+    out = tool.invoke({"url": "https://hostile.example/big"})
+    assert out.startswith("FETCH_ERROR")
+    assert "max_download_bytes" in out
+    assert "2000000" in out
+
+
+def test_tool_rejects_streamed_body_over_cap():
+    def handler(request):
+        def gen():
+            yield b"x" * 1_048_576
+            yield b"x" * 1_048_576
+            yield b"x"
+
+        return httpx.Response(200, content=gen(), headers={"content-type": "text/html"})
+
+    tool = make_web_fetch(FetchConfig(), transport=httpx.MockTransport(handler))
+    out = tool.invoke({"url": "https://hostile.example/stream"})
+    assert out.startswith("FETCH_ERROR")
+    assert "max_download_bytes" in out
+
+
+def test_tool_extracts_small_page_via_mock_transport():
+    html = (
+        "<html><body>"
+        "<p>WebScout fetch cap check with enough surrounding text.</p>"
+        "<script>window.evil()</script>"
+        "</body></html>"
+    )
+
+    def handler(request):
+        return httpx.Response(200, text=html)
+
+    tool = make_web_fetch(FetchConfig(), transport=httpx.MockTransport(handler))
+    out = tool.invoke({"url": "https://ok.example/page"})
+    assert out.startswith("FETCH_ERROR") is False
+    assert "WebScout fetch cap check" in out
+    assert "evil" not in out

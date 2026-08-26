@@ -1,7 +1,7 @@
 from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
-from app.config import RoleConfig, get_settings
+from app.config import RoleConfig, Settings, get_settings
 
 ROLES = ("researcher", "verifier", "answer")
 
@@ -39,7 +39,9 @@ class ResearchChatOpenAI(ChatOpenAI):
         return result
 
 
-def get_model(role: str = "researcher", settings=None):
+def get_model(
+    role: str = "researcher", settings: Settings | None = None
+) -> ResearchChatOpenAI:
     if role not in ROLES:
         raise ValueError(f"unknown role: {role}")
     s = settings or get_settings()

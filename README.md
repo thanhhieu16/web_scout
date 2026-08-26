@@ -113,8 +113,9 @@ Results appear as an experiment in your LangSmith project.
 | `fetch.timeout_seconds` | `15.0` | HTTP timeout for `web_fetch` |
 | `fetch.max_chars` | `20000` | Max characters extracted per fetched page |
 | `fetch.user_agent` | `WebScout/0.1 (research agent)` | User-Agent header sent by `web_fetch` |
+| `fetch.max_download_bytes` | `2000000` | Cap on bytes downloaded per fetch before extraction |
 
-Environment variable equivalents override YAML where defined (e.g. `OPENROUTER_API_KEY`, also accepts `WEBCOUT_OPENROUTER_API_KEY`); `openrouter_base_url` defaults to `https://openrouter.ai/api/v1`.
+Environment variable equivalents override YAML where defined (e.g. `OPENROUTER_API_KEY`, also accepts `WEBSCOUT_OPENROUTER_API_KEY`); `openrouter_base_url` defaults to `https://openrouter.ai/api/v1`.
 
 ## Project layout
 

@@ -23,6 +23,7 @@ class FetchConfig(BaseModel):
     timeout_seconds: float = 15.0
     max_chars: int = 20000
     user_agent: str = "WebScout/0.1 (research agent)"
+    max_download_bytes: int = 2_000_000
 
 
 class Settings(BaseSettings):
@@ -34,7 +35,7 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str = Field(
         default="",
-        validation_alias=AliasChoices("OPENROUTER_API_KEY", "WEBCOUT_OPENROUTER_API_KEY"),
+        validation_alias=AliasChoices("OPENROUTER_API_KEY", "WEBSCOUT_OPENROUTER_API_KEY"),
     )
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 

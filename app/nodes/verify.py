@@ -50,10 +50,10 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
             + "\n\nSources:\n"
             + json.dumps(state.get("sources") or [], ensure_ascii=False, indent=2)
         )
+        reply = call_with_backoff(
+            llm.invoke, [("system", VERIFY_SYSTEM_PROMPT), ("human", human)]
+        )
         try:
-            reply = call_with_backoff(
-                llm.invoke, [("system", VERIFY_SYSTEM_PROMPT), ("human", human)]
-            )
             result = _parse_verdict(str(reply.content))
         except ValueError:
             retry_human = (
@@ -68,12 +68,14 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
                 result = _parse_verdict(str(reply.content))
             except ValueError as exc:
                 print(f"[warn] verifier parse failed after retry: {exc}", file=sys.stderr)
-                return {
-                    "sufficient": False,
-                    "gaps": ["verifier parse error"],
-                    "contradictory_claims": [],
-                    "weak_claims": list(state.get("weak_claims") or []),
-                }
+                result = None
+        if result is None:
+            return {
+                "sufficient": False,
+                "gaps": ["verifier parse error"],
+                "contradictory_claims": [],
+                "weak_claims": list(state.get("weak_claims") or []),
+            }
         merged_weak = list(dict.fromkeys(
             (state.get("weak_claims") or []) + result.weak_claims
         ))

@@ -25,8 +25,8 @@ Method:
 Integrity rules:
 - Never invent a URL, citation or source. Reference ONLY URLs that appeared
   in your search results or that you fetched yourself.
-- For each numbered citation you produce, the corresponding URL must be
-  listed in SOURCES YOU USED below, in exactly that order.
+- Number your citations [S1], [S2], ... in the order you first used each
+  source.
 
 Output contract — end EVERY final reply with exactly this block:
 

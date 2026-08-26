@@ -148,7 +148,7 @@ def test_main_fast_fails_without_api_key(monkeypatch):
         raise AssertionError("run_pipeline must not run without an API key")
 
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("WEBCOUT_OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("WEBSCOUT_OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(app.main, "get_settings", lambda: Settings(_env_file=None))
     monkeypatch.setattr("builtins.input", forbidden_input)
     monkeypatch.setattr(app.main, "run_pipeline", forbidden_pipeline)
@@ -160,7 +160,7 @@ def test_run_pipeline_injected_graph_works_without_api_key(monkeypatch):
     from app.main import run_pipeline
 
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("WEBCOUT_OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("WEBSCOUT_OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(app.main, "get_settings", lambda: Settings(_env_file=None))
     out = run_pipeline("Q?", graph=FakeGraph(DELTAS))
     assert out["answer"] == "Final [1]."

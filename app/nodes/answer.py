@@ -25,8 +25,7 @@ def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState]
             for i, s in enumerate(state.get("sources") or [], 1)
         ]
         sections = [
-            ANSWER_SYSTEM_PROMPT,
-            f"Question:\n{state['question']}",
+            f"Question:\n{state.get('question', '')}",
             "Findings:\n"
             + "\n".join(
                 f"- ({f.get('confidence')}) {f.get('claim')} "
@@ -44,7 +43,10 @@ def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState]
                 "The verification budget was exhausted without full confidence. "
                 "Explicitly state the remaining uncertainty in the answer."
             )
-        reply = call_with_backoff(llm.invoke, "\n\n".join(sections))
+        reply = call_with_backoff(
+            llm.invoke,
+            [("system", ANSWER_SYSTEM_PROMPT), ("human", "\n\n".join(sections))],
+        )
         return {"answer": str(reply.content).strip()}
 
     return answer

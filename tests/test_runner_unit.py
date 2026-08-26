@@ -31,7 +31,7 @@ def test_run_evals_main_fails_fast_without_api_key(monkeypatch):
         raise AssertionError("Client must not be constructed without an API key")
 
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    monkeypatch.delenv("WEBCOUT_OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("WEBSCOUT_OPENROUTER_API_KEY", raising=False)
     monkeypatch.setattr(mod, "get_settings", lambda: Settings(_env_file=None))
     monkeypatch.setattr(mod, "Client", forbidden_client)
     with pytest.raises(SystemExit, match="OPENROUTER_API_KEY is not set"):
