@@ -14,3 +14,5 @@ class ResearchState(TypedDict, total=False):
     answer: str
     answer_language: str
     search_calls: int
+    total_tokens: int
+    total_cost: float

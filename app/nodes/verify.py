@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from app.backoff import call_with_backoff
 from app.config import Settings
+from app.nodes.parsing import sum_usage
 from app.schemas import VerificationResult
 from app.state import ResearchState
 
@@ -69,12 +70,18 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
             except ValueError as exc:
                 print(f"[warn] verifier parse failed after retry: {exc}", file=sys.stderr)
                 result = None
+        tokens, cost = sum_usage([reply])
+        usage_delta = {
+            "total_tokens": state.get("total_tokens", 0) + tokens,
+            "total_cost": round(state.get("total_cost", 0.0) + cost, 6),
+        }
         if result is None:
             return {
                 "sufficient": False,
                 "gaps": ["verifier parse error"],
                 "contradictory_claims": [],
                 "weak_claims": list(state.get("weak_claims") or []),
+                **usage_delta,
             }
         merged_weak = list(dict.fromkeys(
             (state.get("weak_claims") or []) + result.weak_claims
@@ -84,6 +91,7 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
             "gaps": result.missing_information,
             "weak_claims": merged_weak,
             "contradictory_claims": result.contradictory_claims,
+            **usage_delta,
         }
 
     return verify

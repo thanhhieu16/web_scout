@@ -67,5 +67,7 @@ def test_verify_degrades_after_failed_retry(capsys):
         "gaps": ["verifier parse error"],
         "contradictory_claims": [],
         "weak_claims": ["old weak"],
+        "total_tokens": 0,
+        "total_cost": 0.0,
     }
     assert "[warn]" in capsys.readouterr().err

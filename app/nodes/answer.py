@@ -2,6 +2,7 @@ from typing import Callable
 
 from app.backoff import call_with_backoff
 from app.config import Settings
+from app.nodes.parsing import sum_usage
 from app.state import ResearchState
 
 ANSWER_SYSTEM_PROMPT = """You are WebScout's answer writer.
@@ -47,6 +48,11 @@ def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState]
             llm.invoke,
             [("system", ANSWER_SYSTEM_PROMPT), ("human", "\n\n".join(sections))],
         )
-        return {"answer": str(reply.content).strip()}
+        tokens, cost = sum_usage([reply])
+        return {
+            "answer": str(reply.content).strip(),
+            "total_tokens": state.get("total_tokens", 0) + tokens,
+            "total_cost": round(state.get("total_cost", 0.0) + cost, 6),
+        }
 
     return answer

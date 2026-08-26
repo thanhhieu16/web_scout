@@ -111,6 +111,28 @@ def count_total_searches(messages) -> int:
     return total
 
 
+def sum_usage(messages) -> tuple[int, float]:
+    tokens = 0
+    cost = 0.0
+    for message in messages:
+        usage_meta = getattr(message, "usage_metadata", None)
+        if isinstance(usage_meta, dict):
+            tokens += int(usage_meta.get("total_tokens", 0) or 0)
+        else:
+            meta = getattr(message, "response_metadata", None) or {}
+            token_usage = meta.get("token_usage") if isinstance(meta, dict) else None
+            if isinstance(token_usage, dict):
+                tokens += int(token_usage.get("total_tokens", 0) or 0)
+        meta = getattr(message, "response_metadata", None) or {}
+        token_usage = meta.get("token_usage") if isinstance(meta, dict) else None
+        if isinstance(token_usage, dict):
+            try:
+                cost += float(token_usage.get("cost", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+    return tokens, round(cost, 6)
+
+
 _SEARCH_ENGINE_MARKERS = (
     "duckduckgo.com/html",
     "duckduckgo.com/?q",
