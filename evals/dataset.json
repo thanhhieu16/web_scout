@@ -1,0 +1,146 @@
+[
+  {
+    "id": "tech-current-1",
+    "category": "current technology",
+    "question": "Phiên bản ổn định mới nhất của LangGraph là gì và ngày phát hành?",
+    "reference_notes": "Cần phiên bản cụ thể + ngày từ PyPI/GitHub releases."
+  },
+  {
+    "id": "tech-current-2",
+    "category": "current technology",
+    "question": "What is the latest stable major version of PostgreSQL and when was it released?",
+    "reference_notes": "Must name the current stable major version and its exact release date per postgresql.org."
+  },
+  {
+    "id": "tech-current-3",
+    "category": "current technology",
+    "question": "Phiên bản LTS mới nhất của Node.js là gì và ngày phát hành chính thức?",
+    "reference_notes": "Cần số phiên bản LTS + ngày phát hành từ nodejs.org."
+  },
+  {
+    "id": "compare-1",
+    "category": "product comparison",
+    "question": "LangGraph khác Temporal ở mô hình thực thi?",
+    "reference_notes": "State-machine orchestration vs durable workflow execution; replay semantics."
+  },
+  {
+    "id": "compare-2",
+    "category": "product comparison",
+    "question": "How does DuckDB differ from SQLite for analytical workloads?",
+    "reference_notes": "Columnar vectorized execution vs row-oriented storage; OLAP vs OLTP emphasis."
+  },
+  {
+    "id": "compare-3",
+    "category": "product comparison",
+    "question": "Ruff khác flake8 ở điểm gì trong quy trình lint Python?",
+    "reference_notes": "Viết bằng Rust nên nhanh hơn đáng kể; gộp lint + format; kiểm tra benchmark/docs chính thức."
+  },
+  {
+    "id": "history-1",
+    "category": "historical fact",
+    "question": "HTTP/2 được chuẩn hóa năm nào bởi IETF?",
+    "reference_notes": "RFC 7540, tháng 5/2015."
+  },
+  {
+    "id": "history-2",
+    "category": "historical fact",
+    "question": "In what year was the first GPS satellite launched into orbit?",
+    "reference_notes": "Navstar 1 launched February 1978 by the US Department of Defense."
+  },
+  {
+    "id": "history-3",
+    "category": "historical fact",
+    "question": "Giao thức TCP được mô tả lần đầu trong RFC nào và năm nào?",
+    "reference_notes": "RFC 675, tháng 12/1974 (Cerf & Kahn); chấp nhận RFC 791/793 năm 1981 nếu nói về chuẩn hóa TCP/IP."
+  },
+  {
+    "id": "doc-1",
+    "category": "technical documentation",
+    "question": "trafilatura có tham số nào để giữ link khi trích xuất?",
+    "reference_notes": "include_links trong extract(); kiểm tra docs."
+  },
+  {
+    "id": "doc-2",
+    "category": "technical documentation",
+    "question": "How do you set separate connect and read timeouts in httpx?",
+    "reference_notes": "httpx.Timeout with connect/read fields passed via timeout= to Client; check official docs."
+  },
+  {
+    "id": "doc-3",
+    "category": "technical documentation",
+    "question": "Pydantic v2 dùng phương thức nào để xác thực dữ liệu từ dict thay cho parse_obj?",
+    "reference_notes": "model_validate(); kiểm tra migration guide v1 sang v2 trên docs.pydantic.dev."
+  },
+  {
+    "id": "science-1",
+    "category": "scientific question",
+    "question": "CRISPR-Cas9 phân biệt target DNA nhờ gì?",
+    "reference_notes": "Guide RNA complementarity + PAM sequence."
+  },
+  {
+    "id": "science-2",
+    "category": "scientific question",
+    "question": "Why does the sky appear blue according to Rayleigh scattering?",
+    "reference_notes": "Scattering intensity proportional to 1/lambda^4, shorter blue wavelengths scatter more; bonus for human perception."
+  },
+  {
+    "id": "science-3",
+    "category": "scientific question",
+    "question": "Tại sao nước đá nổi trên nước lỏng?",
+    "reference_notes": "Liên kết hydro tạo cấu trúc tinh thể lỏng lẻo khiến băng ít đặc hơn nước ở 0°C."
+  },
+  {
+    "id": "synthesis-1",
+    "category": "multi-source synthesis",
+    "question": "Ưu nhược điểm của uv so với pip+venv cho dự án Python vừa?",
+    "reference_notes": "Tốc độ lockfile vs độ phổ biến/tương thích ecosystem."
+  },
+  {
+    "id": "synthesis-2",
+    "category": "multi-source synthesis",
+    "question": "Compare serverless functions versus containers for hosting a small web API on cost and operational overhead.",
+    "reference_notes": "Needs both sides: pay-per-request economics vs cold starts and lock-in; ops burden vs control; synthesized from multiple sources."
+  },
+  {
+    "id": "synthesis-3",
+    "category": "multi-source synthesis",
+    "question": "Tổng hợp ưu nhược điểm của RAG so với fine-tuning cho chatbot nội bộ doanh nghiệp.",
+    "reference_notes": "Cần cả hai hướng: kiến thức tươi và trích nguồn vs kiểm soát phong cách và độ trễ; tổng hợp từ ít nhất 2 nguồn."
+  },
+  {
+    "id": "conflict-1",
+    "category": "conflicting evidence",
+    "question": "Python 3.13 free-threading có ảnh hưởng hiệu năng single-thread không? Các nguồn nói gì?",
+    "reference_notes": "Kỳ vọng: overhead nhỏ ~vài %; phải nêu nếu nguồn mâu thuẫn."
+  },
+  {
+    "id": "conflict-2",
+    "category": "conflicting evidence",
+    "question": "Does moderate coffee consumption help or harm heart health? Where do sources disagree?",
+    "reference_notes": "Expects acknowledgment of mixed evidence across cohort studies and reviews; must surface disagreement rather than pick one side."
+  },
+  {
+    "id": "conflict-3",
+    "category": "conflicting evidence",
+    "question": "Uống rượu vang đỏ có tốt cho tim mạch không? Các nghiên cứu có mâu thuẫn không?",
+    "reference_notes": "Kỳ vọng nêu bằng chứng mâu thuẫn (resveratrol vs khuyến nghị không ngưỡng an toàn của WHO); phải ghi nhận bất đồng giữa các nguồn."
+  },
+  {
+    "id": "news-1",
+    "category": "recent news",
+    "question": "OpenRouter có tính năng server tools nào phát hành gần nhất?",
+    "reference_notes": "openrouter:web_search server tool; so tài liệu hiện hành."
+  },
+  {
+    "id": "news-2",
+    "category": "recent news",
+    "question": "Nghĩa vụ nào của EU AI Act bắt đầu có hiệu lực gần nhất và từ ngày nào?",
+    "reference_notes": "Phải nêu mốc áp dụng cụ thể theo thời điểm hiện tại kèm ngày và nguồn chính thống như European Commission."
+  },
+  {
+    "id": "news-3",
+    "category": "recent news",
+    "question": "What is Anthropic's most recently announced frontier model and when was it announced?",
+    "reference_notes": "Must name the latest announced model family/version with a date sourced from anthropic.com or reputable press."
+  }
+]
