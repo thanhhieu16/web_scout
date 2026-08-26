@@ -141,3 +141,20 @@ def test_web_search_records_usage_even_with_no_results():
     tokens, cost, _ = collector.drain()
     assert tokens == 120
     assert abs(cost - 0.0008) < 1e-9
+
+
+def test_web_search_body_requests_usage_accounting():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json=_ok_response_body())
+
+    tool = make_web_search(
+        Settings(_env_file=None),  # type: ignore[call-arg]
+        transport=httpx.MockTransport(handler),
+    )
+    tool.invoke({"query": "q"})
+    assert captured["usage"] == {"include": True}

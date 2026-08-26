@@ -1,3 +1,5 @@
+import pytest
+
 from app.config import RoleConfig, Settings
 from app.models import get_model
 
@@ -23,8 +25,6 @@ def test_get_model_custom_role_values():
 
 
 def test_invalid_role_raises():
-    import pytest
-
     with pytest.raises(ValueError):
         get_model("nonexistent", _settings())
 
@@ -75,3 +75,22 @@ def test_get_model_retries_and_timeout():
     m = get_model("verifier")
     assert m.max_retries == 4
     assert m.request_timeout == 180
+
+
+def test_payload_requests_usage_accounting():
+    from langchain_core.messages import HumanMessage
+
+    payload = get_model("verifier")._get_request_payload([HumanMessage("hi")])
+    assert payload["usage"] == {"include": True}
+
+
+@pytest.mark.integration
+def test_cost_present_in_response_metadata():
+    import os
+
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        pytest.skip("needs OPENROUTER_API_KEY")
+    reply = get_model("verifier").invoke([("human", "Reply with the single word: ok")])
+    token_usage = reply.response_metadata.get("token_usage") or {}
+    assert "cost" in token_usage, f"no cost in {token_usage}"
+    assert float(token_usage["cost"]) > 0

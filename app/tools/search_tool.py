@@ -21,6 +21,7 @@ def make_web_search(settings: Settings, transport=None, usage=None):
             ],
             "tools": [build_search_spec(settings.search)],
             "max_tokens": 800,
+            "usage": {"include": True},
         }
         try:
             with httpx.Client(
