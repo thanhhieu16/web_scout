@@ -32,11 +32,12 @@ iterations: 1 | searches: 2 | sources: 10 | tokens: 67774 | est_cost: $0.0140
 
 Assessment: `tokens` > 0, `searches` >= 1, 10 sources listed, answer carries `[1]`–`[10]`
 inline citations that match the SOURCES list — all satisfied. `est_cost` is **non-zero**
-($0.0140), which is worth flagging: `stealth/ox-alpha` is priced 0/0 for prompt+completion
-on OpenRouter, so the model tokens themselves are free, but the client-side `web_search`
-tool call still carries a nonzero `cost` in its own OpenRouter response (2 searches this
-run) — that per-request cost, not model tokens, is what the METRICS line is showing. Full
-verbatim CLI output, including the answer text, is in the task report.
+($0.0140): `stealth/ox-alpha` is priced 0/0 for prompt+completion tokens on OpenRouter, but
+OpenRouter bills `web_search` **requests** separately from token pricing (2 searches this
+run), so a run that searches costs real money even on a free model. **Spec §14 DoD item 3 —
+"a real run prints a non-zero `est_cost` that includes `web_search` spend" — is genuinely
+satisfied by this run.** Full verbatim CLI output, including the answer text, is in the task
+report.
 
 ## Step 2 — eval run
 
@@ -52,24 +53,30 @@ run against real LangSmith infrastructure — but two problems surfaced:
    ("Ưu nhược điểm của uv so với pip+venv cho dự án Python vừa?") was still `pending` in
    LangSmith (no `end_time`) when the run was killed. This looks like a slow example, not a
    pipeline bug — the other 4 finished within the same window.
-2. **`metrics_evaluator` is broken against the installed SDK.** `evals/evaluators.py`
-   `metrics_evaluator` returns a bare `list[EvaluationResult]`; `langsmith==0.11.1`'s
-   `_format_evaluator_result` requires a list of dicts or a `EvaluationResults` wrapper, not
-   a raw list of `EvaluationResult` objects. Every root run raised
-   `ValueError: Expected a list of dicts or EvaluationResults. Received [...]` for this
+2. **`metrics_evaluator` was broken against the installed SDK at the time of this run.**
+   `evals/evaluators.py::metrics_evaluator` returned a bare `list[EvaluationResult]`;
+   `langsmith==0.11.1`'s `_format_evaluator_result` requires a list of dicts or an
+   `EvaluationResults` mapping, not a raw list of `EvaluationResult` objects. Every root run
+   raised `ValueError: Expected a list of dicts or EvaluationResults. Received [...]` for this
    evaluator, so the `latency_s` / `total_tokens` / `search_calls` / `num_sources` feedback
    keys were **never recorded** to LangSmith for this experiment. `correctness` and
    `citation_support` (which each return one bare `EvaluationResult`, not a list) were
-   unaffected.
+   unaffected. **This has since been fixed** (`metrics_evaluator` now returns
+   `{"results": [...]}`, pinned by `tests/test_evaluators.py::test_metrics_evaluator_returns_wrapped_results`)
+   — but that fix landed after this run, so the numbers below for `total_tokens`,
+   `search_calls`, and `num_sources` are still hand-computed from `run.outputs` /
+   `run.total_tokens`, not from LangSmith feedback. This record documents what actually
+   happened in this run; it is not being re-run or backfilled now that the evaluator works.
+   A future eval run should produce these four keys natively in LangSmith.
 
 Numbers below are read directly from the LangSmith experiment view
 (project `post-remediation-eb864dbc`), not from `uv run python -m evals.summarize` —
 `summarize.py`'s hardcoded `ARMS` list (`skill-on-iters3`, `skill-off-iters3`,
 `skill-on-iters1`, `skill-off-iters1`) does not include `post-remediation`, so it prints
-`MISSING` for all four arms, exactly as anticipated. (Separately, running
-`evals.summarize` completely standalone also 401s — it never imports `app.config`, so
-`.env` is never auto-loaded, unlike `run_evals.py`; only reproducible with `LANGSMITH_API_KEY`
-pre-set in the shell instead of `.env`.)
+`MISSING` for all four arms, exactly as anticipated. (Separately, at the time of this run
+`evals.summarize` also 401ed when invoked completely standalone — it never imported
+`app.config`, so `.env` was never auto-loaded, unlike `run_evals.py`. **This has since been
+fixed** by adding that import to `evals/summarize.py`.)
 
 | metric | n | avg | source |
 |---|---|---|---|

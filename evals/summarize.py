@@ -2,6 +2,8 @@ from collections import defaultdict
 
 from langsmith import Client
 
+import app.config  # noqa: F401 — import triggers .env autoload before Client() reads LANGSMITH_API_KEY
+
 KEYS = (
     "correctness", "citation_support", "latency_s",
     "total_tokens", "search_calls", "num_sources",

@@ -30,11 +30,29 @@ def test_metrics_evaluator_values():
         _run("a [1]", [{"url": "https://x"}], searches=4, tokens=999, seconds=12.0),
         EXAMPLE,
     )
-    kv = {r.key: r.value for r in results}
+    kv = {r.key: r.value for r in results["results"]}
     assert kv["latency_s"] == 12.0
     assert kv["total_tokens"] == 999
     assert kv["search_calls"] == 4
     assert kv["num_sources"] == 1
+
+
+def test_metrics_evaluator_returns_wrapped_results():
+    from types import SimpleNamespace
+
+    from evals.evaluators import metrics_evaluator
+
+    run = SimpleNamespace(
+        inputs={"question": "q"},
+        outputs={"answer": "a", "sources": [{"url": "u"}], "search_calls": 3},
+        start_time=None,
+        end_time=None,
+        total_tokens=1234,
+    )
+    out = metrics_evaluator(run, None)
+    assert isinstance(out, dict), "langsmith requires an EvaluationResults mapping"
+    keys = {r.key for r in out["results"]}
+    assert keys == {"latency_s", "total_tokens", "search_calls", "num_sources"}
 
 
 def test_citation_support_flags_unresolved_refs():

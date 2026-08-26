@@ -1,7 +1,7 @@
 import json
 import re
 
-from langsmith.evaluation import EvaluationResult
+from langsmith.evaluation import EvaluationResult, EvaluationResults
 
 from app.models import get_model
 
@@ -91,7 +91,7 @@ def citation_support_evaluator(run, example, judge=None) -> EvaluationResult:
     )
 
 
-def metrics_evaluator(run, example) -> list[EvaluationResult]:
+def metrics_evaluator(run, example) -> EvaluationResults:
     outputs = run.outputs or {}
     latency = 0.0
     if getattr(run, "start_time", None) and getattr(run, "end_time", None):
@@ -102,7 +102,11 @@ def metrics_evaluator(run, example) -> list[EvaluationResult]:
         "search_calls": int(outputs.get("search_calls", 0) or 0),
         "num_sources": len(outputs.get("sources") or []),
     }
-    return [
-        EvaluationResult(key=k, score=float(v), value=float(v))
-        for k, v in values.items()
-    ]
+    # langsmith==0.11.1's client rejects a bare list of EvaluationResult; it
+    # requires the EvaluationResults mapping wrapper (see task-13 fix round).
+    return {
+        "results": [
+            EvaluationResult(key=k, score=float(v), value=float(v))
+            for k, v in values.items()
+        ]
+    }
