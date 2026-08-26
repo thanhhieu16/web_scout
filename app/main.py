@@ -5,12 +5,12 @@ from app.agent import build_research_agent
 from app.config import get_settings
 from app.graph import build_graph
 from app.nodes.parsing import (
-    extract_url_citations,
+    collect_citations,
+    count_total_searches,
     map_refs_to_urls,
     parse_findings_block,
     reconcile_sources,
 )
-from app.tools.search import count_web_searches
 
 
 def run_question(question: str, agent=None, settings=None) -> dict:
@@ -20,12 +20,13 @@ def run_question(question: str, agent=None, settings=None) -> dict:
         {"messages": [{"role": "user", "content": question}]},
         config={"recursion_limit": 50},
     )
-    message = result["messages"][-1]
+    messages = result["messages"]
+    message = messages[-1]
     findings, refs, narrative = parse_findings_block(str(message.content))
-    citations = extract_url_citations(message)
+    citations = collect_citations(messages)
     findings, _ = map_refs_to_urls(findings, refs, citations)
     sources, unknown = reconcile_sources(findings, citations)
-    searches = count_web_searches(message)
+    searches = count_total_searches(messages)
     if unknown:
         print(f"[warn] {len(unknown)} uncited URL(s) ignored", file=sys.stderr)
     return {

@@ -4,31 +4,34 @@ import app.main
 from app.main import main, run_question
 
 
-class FakeAgent:
-    def invoke(self, payload, config=None):
-        from langchain_core.messages import AIMessage
+def _cli_message():
+    from langchain_core.messages import AIMessage
 
-        return {
-            "messages": [
-                AIMessage(
-                    content=(
-                        "Answer body citing [S1].\n\n## FINDINGS\n"
-                        "- [S1] LG runs on LangGraph | confidence: high\n"
-                    ),
-                    additional_kwargs={
-                        "annotations": [
-                            {
-                                "url_citation": {
-                                    "url": "https://docs.langchain.com/lg",
-                                    "title": "LG Docs",
-                                    "content": "lg docs text",
-                                }
-                            }
-                        ]
-                    },
-                )
+    return AIMessage(
+        content=(
+            "Answer body citing [S1].\n\n## FINDINGS\n"
+            "- [S1] LG runs on LangGraph | confidence: high\n"
+        ),
+        additional_kwargs={
+            "annotations": [
+                {
+                    "url_citation": {
+                        "url": "https://docs.langchain.com/lg",
+                        "title": "LG Docs",
+                        "content": "lg docs text",
+                    }
+                }
             ]
-        }
+        },
+    )
+
+
+class FakeAgent:
+    def __init__(self, messages=None):
+        self._messages = list(messages) if messages is not None else [_cli_message()]
+
+    def invoke(self, payload, config=None):
+        return {"messages": self._messages}
 
 
 def test_run_question_assembles_result():
@@ -37,6 +40,29 @@ def test_run_question_assembles_result():
     assert out["sources"][0]["url"] == "https://docs.langchain.com/lg"
     assert out["sources"][0]["source_type"] == "secondary"
     assert out["findings"][0]["claim"].startswith("LG runs")
+
+
+def test_run_question_collects_citations_across_messages():
+    from types import SimpleNamespace
+
+    early = SimpleNamespace(
+        content="searching...",
+        annotations=[
+            {
+                "url_citation": {
+                    "url": "https://early.dev",
+                    "title": "Early",
+                    "content": "early text",
+                }
+            }
+        ],
+        additional_kwargs={},
+        response_metadata={"usage": {"server_tool_use": {"web_search_requests": 2}}},
+    )
+    out = run_question("Q?", agent=FakeAgent([early, _cli_message()]))
+    urls = [src["url"] for src in out["sources"]]
+    assert urls == ["https://early.dev", "https://docs.langchain.com/lg"]
+    assert out["search_calls"] == 2
 
 
 @pytest.mark.integration

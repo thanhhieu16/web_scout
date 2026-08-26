@@ -6,11 +6,11 @@ from app.nodes.research import build_research_input, make_research_node
 
 class FakeAgent:
     def __init__(self, msg):
-        self._msg = msg
+        self._msgs = msg if isinstance(msg, list) else [msg]
 
     def invoke(self, payload, config=None):
         self.last_payload = payload
-        return {"messages": [self._msg]}
+        return {"messages": list(self._msgs)}
 
 
 def _msg(content, citations):
@@ -71,3 +71,32 @@ def test_unknown_ref_becomes_weak_claim():
         {"question": "Q?", "iteration": 1, "gaps": [], "weak_claims": []}
     )
     assert any("Ghost claim" in w for w in delta["weak_claims"])
+
+
+def test_multi_message_run_collects_citations_and_searches():
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    early = SimpleNamespace(
+        content="searching...",
+        annotations=[
+            {"url_citation": {"url": "https://a.dev", "title": "A", "content": "ca"}},
+            {"url_citation": {"url": "https://x.dev", "title": "X", "content": "cx"}},
+        ],
+        additional_kwargs={},
+        response_metadata={"usage": {"server_tool_use": {"web_search_requests": 3}}},
+    )
+    final_msg = SimpleNamespace(
+        content=CONTENT,
+        annotations=[],
+        additional_kwargs={},
+        response_metadata={"usage": {}},
+    )
+    agent = FakeAgent([early, final_msg])
+    delta = make_research_node(agent, s)(
+        {"question": "Q?", "iteration": 0, "gaps": [], "weak_claims": []}
+    )
+    assert [src["url"] for src in delta["sources"]] == [
+        "https://a.dev",
+        "https://x.dev",
+    ]
+    assert delta["search_calls"] == 3
+    assert delta["findings"][0]["source_urls"] == ["https://a.dev"]

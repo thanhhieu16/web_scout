@@ -3,13 +3,13 @@ from typing import Callable
 
 from app.config import Settings
 from app.nodes.parsing import (
-    extract_url_citations,
+    collect_citations,
+    count_total_searches,
     map_refs_to_urls,
     parse_findings_block,
     reconcile_sources,
 )
 from app.state import ResearchState
-from app.tools.search import count_web_searches
 
 
 def build_research_input(state: ResearchState) -> str:
@@ -37,9 +37,10 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
             {"messages": [{"role": "user", "content": prompt}]},
             config={"recursion_limit": 50},
         )
-        message = result["messages"][-1]
+        messages = result["messages"]
+        message = messages[-1]
         findings, refs, _ = parse_findings_block(str(message.content))
-        citations = extract_url_citations(message)
+        citations = collect_citations(messages)
         findings, _ = map_refs_to_urls(findings, refs, citations)
         sources, unknown = reconcile_sources(findings, citations)
         unknown_set = set(unknown)
@@ -62,7 +63,7 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
             "weak_claims": prior_weak + weak,
             "iteration": state.get("iteration", 0) + 1,
             "search_calls": state.get("search_calls", 0)
-            + count_web_searches(message),
+            + count_total_searches(messages),
         }
 
     return research

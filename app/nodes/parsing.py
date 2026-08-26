@@ -2,6 +2,7 @@ import re
 from typing import Any
 
 from app.schemas import Finding, Source
+from app.tools.search import count_web_searches
 
 _LINE_RE = re.compile(
     r"^-\s*\[(?P<ref>S\d+)\]\s+(?P<claim>.+?)\s*\|\s*confidence:\s*"
@@ -80,6 +81,29 @@ def extract_url_citations(message: Any) -> list[dict]:
     seen: set[str] = set()
     deduped = [c for c in out if not (c["url"] in seen or seen.add(c["url"]))]
     return deduped
+
+
+def collect_citations(messages) -> list[dict]:
+    out: list[dict] = []
+    seen: set[str] = set()
+    for message in messages:
+        for cite in extract_url_citations(message):
+            url = cite.get("url")
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            out.append(cite)
+    return out
+
+
+def count_total_searches(messages) -> int:
+    total = 0
+    for message in messages:
+        try:
+            total += count_web_searches(message)
+        except (TypeError, ValueError):
+            continue
+    return total
 
 
 def reconcile_sources(
