@@ -54,23 +54,20 @@ def parse_findings_block(text: str) -> FindingsParse:
 
 def map_refs_to_urls(
     findings: list[Finding], refs: list[list[str]], citations: list[dict]
-) -> tuple[list[Finding], list[str]]:
+) -> list[Finding]:
     ordered_urls = [c.get("url") for c in citations if c.get("url")]
     ref_to_url = {f"S{i + 1}": u for i, u in enumerate(ordered_urls)}
     mapped: list[Finding] = []
     for finding, finding_refs in zip(findings, refs, strict=True):
-        urls: list[str] = []
-        for r in finding_refs:
-            if r in ref_to_url:
-                urls.append(ref_to_url[r])
-            else:
-                urls.append(f"unresolved:{r}")
-        mapped.append(Finding(
-            claim=finding["claim"],
-            source_urls=list(dict.fromkeys(urls)),
-            confidence=finding["confidence"],
-        ))
-    return mapped, []
+        urls = [ref_to_url.get(r, f"unresolved:{r}") for r in finding_refs]
+        mapped.append(
+            Finding(
+                claim=finding["claim"],
+                source_urls=list(dict.fromkeys(urls)),
+                confidence=finding["confidence"],
+            )
+        )
+    return mapped
 
 
 def extract_url_citations(message: Any) -> list[dict]:
@@ -244,28 +241,13 @@ def build_sources(messages) -> "tuple[list[Source], list[dict]]":
     return ordered, ref_order
 
 
-def reconcile_sources(
-    findings: list[Finding], citations: list[dict]
-) -> tuple[list[Source], list[str]]:
-    sources: list[Source] = []
-    known: set[str] = set()
-    for cite in citations:
-        url = cite.get("url")
-        if not url or url in known:
-            continue
-        known.add(url)
-        sources.append(
-            Source(
-                url=url,
-                title=cite.get("title") or url,
-                source_type="secondary",
-                excerpt=(cite.get("content") or "")[:500],
-            )
-        )
+def find_unknown_refs(findings: list[Finding], citations: list[dict]) -> list[str]:
+    """URLs a finding cites that are not in the reconstructed citation list."""
+    known = {c["url"] for c in citations if c.get("url")}
     unknown: list[str] = []
     for finding in findings:
         for url in finding.get("source_urls", []):
             resolvable = url.startswith("http") or url.startswith("unresolved:")
-            if url not in known and url not in unknown and resolvable:
+            if resolvable and url not in known and url not in unknown:
                 unknown.append(url)
-    return sources, unknown
+    return unknown

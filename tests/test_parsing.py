@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 from app.nodes.parsing import (
     extract_url_citations,
+    find_unknown_refs,
     map_refs_to_urls,
     parse_findings_block,
-    reconcile_sources,
 )
 
 SAMPLE = """Nghiên cứu tổng hợp.
@@ -73,7 +73,7 @@ def test_extract_url_citations_from_additional_kwargs():
     assert len(extract_url_citations(m)) == 1
 
 
-def test_reconcile_sources_dedupes_and_flags_unknown():
+def test_find_unknown_refs_flags_missing_citation():
     findings = [
         {"claim": "x", "source_urls": ["https://a.dev"], "confidence": "high"},
         {"claim": "y", "source_urls": ["https://ghost.dev"], "confidence": "low"},
@@ -82,12 +82,12 @@ def test_reconcile_sources_dedupes_and_flags_unknown():
         {"url": "https://a.dev", "title": "A", "content": "long" * 300},
         {"url": "https://a.dev", "title": "A dup", "content": ""},
     ]
-    sources, unknown = reconcile_sources(findings, citations)
-    assert len(sources) == 1
-    assert sources[0]["url"] == "https://a.dev"
-    assert sources[0]["source_type"] == "secondary"
-    assert len(sources[0]["excerpt"]) <= 500
-    assert unknown == ["https://ghost.dev"]
+    assert find_unknown_refs(findings, citations) == ["https://ghost.dev"]
+
+
+def test_find_unknown_refs_flags_unresolved_prefix():
+    findings = [{"claim": "g", "source_urls": ["unresolved:S9"], "confidence": "low"}]
+    assert find_unknown_refs(findings, []) == ["unresolved:S9"]
 
 
 def test_parse_maps_source_refs_to_urls():
@@ -96,27 +96,17 @@ def test_parse_maps_source_refs_to_urls():
         {"url": "https://langchain.ai", "title": "LG docs", "content": ""},
         {"url": "https://temporal.io", "title": "Temporal docs", "content": ""},
     ]
-    mapped, unknown = map_refs_to_urls(parsed.findings, parsed.refs, citations)
+    mapped = map_refs_to_urls(parsed.findings, parsed.refs, citations)
     assert mapped[0]["source_urls"] == ["https://langchain.ai"]
     assert mapped[1]["source_urls"] == ["https://temporal.io"]
-    assert unknown == []
 
 
 def test_map_refs_unresolved_marker():
     parsed = parse_findings_block("## FINDINGS\n- [S9] Ghost | confidence: low\n")
-    mapped, _ = map_refs_to_urls(
+    mapped = map_refs_to_urls(
         parsed.findings, parsed.refs, [{"url": "https://y.dev", "title": "Y", "content": ""}]
     )
     assert mapped[0]["source_urls"] == ["unresolved:S9"]
-
-
-def test_reconcile_flags_unresolved_prefix():
-    findings = [
-        {"claim": "g", "source_urls": ["unresolved:S9"], "confidence": "low"}
-    ]
-    sources, unknown = reconcile_sources(findings, [])
-    assert unknown == ["unresolved:S9"]
-    assert sources == []
 
 
 def test_parse_reports_dropped_lines():
@@ -170,5 +160,5 @@ def test_multi_ref_maps_to_multiple_urls():
         "## FINDINGS\n- [S1][S2] Cross-checked | confidence: high\n"
     )
     citations = [{"url": "https://a.dev"}, {"url": "https://b.dev"}]
-    mapped, _ = map_refs_to_urls(parsed.findings, parsed.refs, citations)
+    mapped = map_refs_to_urls(parsed.findings, parsed.refs, citations)
     assert mapped[0]["source_urls"] == ["https://a.dev", "https://b.dev"]

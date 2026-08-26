@@ -33,7 +33,3 @@ def count_web_searches(result: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
-
-
-def attach_server_tools(model, specs: list[dict]):
-    return model.model_copy(update={"server_tools": list(specs)})

@@ -7,9 +7,9 @@ from app.config import Settings
 from app.nodes.parsing import (
     build_sources,
     count_total_searches,
+    find_unknown_refs,
     map_refs_to_urls,
     parse_findings_block,
-    reconcile_sources,
     sum_usage,
 )
 from app.state import ResearchState
@@ -53,8 +53,8 @@ def make_research_node(
         message = messages[-1]
         parsed = parse_findings_block(str(message.content))
         sources, ref_order = build_sources(messages)
-        findings, _ = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
-        _, unknown = reconcile_sources(findings, ref_order)
+        findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
+        unknown = find_unknown_refs(findings, ref_order)
         unknown_set = set(unknown)
         seen_weak: set[str] = set()
         weak: list[str] = []
