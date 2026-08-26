@@ -28,14 +28,12 @@ CONTENT = (
 
 
 def test_first_iteration_prompt_only_question():
-    s = Settings(_env_file=None)  # type: ignore[call-arg]
     text = build_research_input({"question": "Q?", "iteration": 0})
     assert "Q?" in text
     assert "Existing findings" not in text
 
 
 def test_followup_prompt_includes_gaps():
-    s = Settings(_env_file=None)  # type: ignore[call-arg]
     text = build_research_input(
         {
             "question": "Q?",

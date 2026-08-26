@@ -34,7 +34,10 @@ def test_verify_merges_result():
 
 
 def test_verify_sufficient_clears_gaps():
-    payload = '{"sufficient": true, "missing_information": [], "weak_claims": [], "contradictory_claims": []}'
+    payload = (
+        '{"sufficient": true, "missing_information": [], '
+        '"weak_claims": [], "contradictory_claims": []}'
+    )
     node = make_verify_node(Settings(_env_file=None), model=_fake_model(payload))  # type: ignore[call-arg]
     delta = node(dict(STATE))
     assert delta["sufficient"] is True

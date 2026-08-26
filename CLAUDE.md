@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```powershell
-uv sync --extra dev                            # install (dev extras = pytest)
+uv sync                                        # install (dev group = pytest, ruff)
 
-uv run python -m app.main "question"           # one-shot run (full graph)
-uv run python -m app.main                      # interactive REPL
-uv run python -m app.main "q" --out report.md  # + markdown report
+uv run webscout "question"                     # one-shot run (full graph)
+uv run webscout                                # interactive REPL
+uv run webscout "q" --out report.md            # + markdown report
 
 uv run pytest -m "not integration"             # offline suite (what CI runs)
 uv run pytest -m integration                   # hits OpenRouter + live web
@@ -19,7 +19,7 @@ uv run python -m evals.run_evals --limit 2     # LangSmith eval (needs LANGSMITH
 uv run python -m evals.summarize               # A/B arm table from LangSmith projects
 ```
 
-`pyproject.toml` declares a `webscout` console script but there is **no `[build-system]`**, so it is never installed — always invoke `python -m app.main`. On Windows consoles, set `$env:PYTHONIOENCODING="utf-8"` if printing the answer raises `cp65001` errors.
+`uv sync` installs the `dev` dependency group (pytest, ruff) by default — no `--extra` flag. The `webscout` console script is installed by the hatchling build backend. On Windows consoles, set `$env:PYTHONIOENCODING="utf-8"` if printing the answer raises `cp65001` errors.
 
 ## Architecture
 

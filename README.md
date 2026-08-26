@@ -62,11 +62,11 @@ loops — which keeps the cost of a run proportional to the research it actually
 ## Quick start
 
 ```powershell
-uv sync --extra dev                 # install, including dev extras (pytest)
+uv sync                             # install, including dev group (pytest, ruff)
 
 Copy-Item .env.example .env         # then fill in OPENROUTER_API_KEY
 
-uv run python -m app.main "What changed in the EU AI Act in 2026?"
+uv run webscout "What changed in the EU AI Act in 2026?"
 ```
 
 `.env` is loaded automatically at startup — no manual `$env:` exports needed. Existing OS environment
@@ -83,24 +83,23 @@ Settings precedence: **init kwargs > environment variables > `.env` > `config.ya
 
 ## Usage
 
-**One-shot** (recommended entry point — the repo declares no build-system yet, so the `webscout` console
-script in `pyproject.toml` is never installed):
+**One-shot**:
 
 ```powershell
-uv run python -m app.main "What changed in the EU AI Act in 2026?"
+uv run webscout "What changed in the EU AI Act in 2026?"
 ```
 
 **Interactive** — omit the question; leave with `exit`, `quit`, Ctrl+C or Ctrl+D:
 
 ```powershell
-uv run python -m app.main
+uv run webscout
 webscout> your question here
 ```
 
 **Markdown report** — same run, plus a file containing the answer, findings and sources:
 
 ```powershell
-uv run python -m app.main "What changed in the EU AI Act in 2026?" --out report.md
+uv run webscout "What changed in the EU AI Act in 2026?" --out report.md
 ```
 
 ### What a run looks like
@@ -218,7 +217,6 @@ tests/           offline suite (+ integration marker)
 | Symptom | Fix |
 |---|---|
 | `cp65001` / Unicode errors when printing the answer on Windows | Set `$env:PYTHONIOENCODING="utf-8"` before running |
-| `webscout: command not found` | Expected — no build-system is declared. Use `uv run python -m app.main ...` |
 | `OPENROUTER_API_KEY is not set...` on startup | Intentional early exit — copy `.env.example` to `.env` and fill it in, instead of failing mid-run with an OpenRouter 401 |
 
 ## License

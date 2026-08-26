@@ -43,7 +43,7 @@ def map_refs_to_urls(
     ordered_urls = [c.get("url") for c in citations if c.get("url")]
     ref_to_url = {f"S{i + 1}": u for i, u in enumerate(ordered_urls)}
     mapped: list[Finding] = []
-    for finding, finding_refs in zip(findings, refs):
+    for finding, finding_refs in zip(findings, refs, strict=True):
         urls: list[str] = []
         for r in finding_refs:
             if r in ref_to_url:

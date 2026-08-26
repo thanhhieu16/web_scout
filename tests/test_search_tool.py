@@ -72,7 +72,10 @@ def test_collect_search_tool_sources_pairs_and_parses():
         "[SRC] https://b.dev | B Title\nEXCERPT: beta excerpt"
     )
     messages = [
-        AIMessage(content="", tool_calls=[{"name": "web_search", "args": {"query": "q"}, "id": "s1"}]),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "web_search", "args": {"query": "q"}, "id": "s1"}],
+        ),
         ToolMessage(content=content, tool_call_id="s1"),
         AIMessage(content="## FINDINGS\n- [S1] claim | confidence: high\n"),
     ]
@@ -84,7 +87,10 @@ def test_collect_search_tool_sources_pairs_and_parses():
 
 def test_collect_search_tool_sources_ignores_unrelated_tools():
     messages = [
-        AIMessage(content="", tool_calls=[{"name": "web_fetch", "args": {"url": "https://z"}, "id": "f1"}]),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "web_fetch", "args": {"url": "https://z"}, "id": "f1"}],
+        ),
         ToolMessage(content="[SRC] https://noisy.dev | N\nEXCERPT: x", tool_call_id="f1"),
     ]
     assert collect_search_tool_sources(messages) == []

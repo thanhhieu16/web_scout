@@ -1,7 +1,7 @@
 import json
 import re
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 from pydantic import ValidationError
 
@@ -25,7 +25,8 @@ Checklist:
 Be strict but pragmatic: minor stylistic gaps are fine to pass.
 
 Reply with JSON only, exactly this shape:
-{"sufficient": bool, "missing_information": [str], "weak_claims": [str], "contradictory_claims": [str]}"""
+{"sufficient": bool, "missing_information": [str], "weak_claims": [str],
+ "contradictory_claims": [str]}"""
 
 
 def _parse_verdict(raw: str) -> VerificationResult:

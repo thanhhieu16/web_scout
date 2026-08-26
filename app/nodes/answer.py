@@ -1,4 +1,4 @@
-from typing import Callable
+from collections.abc import Callable
 
 from app.backoff import call_with_backoff
 from app.config import Settings

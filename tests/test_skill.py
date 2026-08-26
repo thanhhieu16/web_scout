@@ -16,5 +16,10 @@ def test_skill_md_frontmatter_valid():
 
 def test_skill_body_has_methodology_sections():
     body = (ROOT / "skills" / "web-research" / "SKILL.md").read_text(encoding="utf-8")
-    for heading in ("Source priority", "Verify important claims", "Handle conflicts", "Citation integrity"):
+    for heading in (
+        "Source priority",
+        "Verify important claims",
+        "Handle conflicts",
+        "Citation integrity",
+    ):
         assert heading.lower() in body.lower()

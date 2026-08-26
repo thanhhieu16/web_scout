@@ -121,7 +121,22 @@ class FakeGraph:
 
 
 DELTAS = [
-    {"research": {"findings": [{"claim": "c", "source_urls": [], "confidence": "high"}], "sources": [{"url": "https://s", "title": "S", "source_type": "secondary", "excerpt": ""}], "iteration": 1, "search_calls": 3, "weak_claims": []}},
+    {
+        "research": {
+            "findings": [{"claim": "c", "source_urls": [], "confidence": "high"}],
+            "sources": [
+                {
+                    "url": "https://s",
+                    "title": "S",
+                    "source_type": "secondary",
+                    "excerpt": "",
+                }
+            ],
+            "iteration": 1,
+            "search_calls": 3,
+            "weak_claims": [],
+        }
+    },
     {"verify": {"sufficient": True, "gaps": [], "weak_claims": [], "contradictory_claims": []}},
     {"answer": {"answer": "Final [1]."}},
 ]

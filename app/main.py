@@ -90,7 +90,7 @@ def _print_result(out: dict) -> None:
 
 def write_report(question: str, out: dict, path: str) -> None:
     lines = [
-        f"# WebScout Report",
+        "# WebScout Report",
         "",
         f"- **Question:** {question}",
         f"- **Generated:** {datetime.now().isoformat(timespec='seconds')}",
@@ -127,7 +127,11 @@ def write_report(question: str, out: dict, path: str) -> None:
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="webscout")
     parser.add_argument("question", nargs="*", help="research question")
-    parser.add_argument("--out", default=None, help="write a markdown report to this path (one-shot mode)")
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="write a markdown report to this path (one-shot mode)",
+    )
     args = parser.parse_args(argv)
     require_openrouter_key()
     if args.question:

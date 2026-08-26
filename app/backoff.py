@@ -8,7 +8,7 @@ def call_with_backoff(fn, *args, attempts: int = 5, base_delay: float = 20.0, **
     for attempt in range(attempts):
         try:
             return fn(*args, **kwargs)
-        except OpenAIRateLimitError as exc:
+        except OpenAIRateLimitError:
             if attempt == attempts - 1:
                 raise
             wait = base_delay * (attempt + 1)
