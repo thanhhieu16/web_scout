@@ -29,10 +29,10 @@ def build_research_input(state: ResearchState) -> str:
                 + "\n- ".join(gaps)
             )
     parts.append(
-        "Reminder: discover sources with the web search capability first, then "
-        "end your final reply with the ## FINDINGS block exactly as your "
-        "instructions specify (one '- [Sn] claim | confidence: ...' line per "
-        "finding)."
+        "Reminder: you MUST invoke the web_search tool at least once before "
+        "fetching anything; then end your final reply with the ## FINDINGS "
+        "block exactly as your instructions specify (one '- [Sn] claim | "
+        "confidence: ...' line per finding)."
     )
     return "\n\n".join(parts)
 
