@@ -61,3 +61,19 @@ def test_build_sources_empty_messages():
     sources, ref_order = build_sources([AIMessage(content="no tools here")])
     assert sources == []
     assert ref_order == []
+
+
+def test_search_engine_result_pages_filtered():
+    messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                _fetch_call("d1", "https://duckduckgo.com/html/?q=acp+vs+a2a"),
+                _fetch_call("d2", "https://real.dev/page"),
+            ],
+        ),
+        ToolMessage(content="results page html", tool_call_id="d1"),
+        ToolMessage(content="real content", tool_call_id="d2"),
+    ]
+    sources = collect_fetched_sources(messages)
+    assert [s["url"] for s in sources] == ["https://real.dev/page"]

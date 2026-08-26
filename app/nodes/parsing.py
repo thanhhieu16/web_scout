@@ -106,6 +106,19 @@ def count_total_searches(messages) -> int:
     return total
 
 
+_SEARCH_ENGINE_MARKERS = (
+    "duckduckgo.com/html",
+    "duckduckgo.com/?q",
+    "google.com/search",
+    "bing.com/search",
+    "search.brave.com/search",
+)
+
+
+def _is_search_result_page(url: str) -> bool:
+    return any(marker in url for marker in _SEARCH_ENGINE_MARKERS)
+
+
 def collect_fetched_sources(messages) -> "list[Source]":
     pending: dict[str, str] = {}
     out: list[Source] = []
@@ -126,6 +139,8 @@ def collect_fetched_sources(messages) -> "list[Source]":
             url = pending.pop(str(message.tool_call_id))
             text = str(content)
             if text.startswith("FETCH_ERROR") or url in seen:
+                continue
+            if _is_search_result_page(url):
                 continue
             seen.add(url)
             out.append(Source(url=url, title=url, source_type="secondary", excerpt=text[:500]))
