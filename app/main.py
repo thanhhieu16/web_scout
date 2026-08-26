@@ -1,5 +1,7 @@
 import argparse
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from app.agent import build_research_agent
 from app.config import get_settings
@@ -64,6 +66,8 @@ def run_pipeline(question: str, graph=None) -> dict:
         "search_calls": final.get("search_calls", 0),
         "sufficient": final.get("sufficient", False),
         "iteration": final.get("iteration", 0),
+        "total_tokens": final.get("total_tokens", 0),
+        "total_cost": round(final.get("total_cost", 0.0), 4),
     }
 
 
@@ -74,15 +78,65 @@ def _print_result(out: dict) -> None:
         print("\n=== SOURCES ===")
         for i, src in enumerate(out["sources"], 1):
             print(f"[{i}] {src['title']} — {src['url']}")
+    print(
+        "\n=== METRICS ===\n"
+        f"iterations: {out.get('iteration', 0)} | "
+        f"searches: {out.get('search_calls', 0)} | "
+        f"sources: {len(out.get('sources', []))} | "
+        f"tokens: {out.get('total_tokens', 0)} | "
+        f"est_cost: ${out.get('total_cost', 0.0):.4f}"
+    )
+
+
+def write_report(question: str, out: dict, path: str) -> None:
+    lines = [
+        f"# WebScout Report",
+        "",
+        f"- **Question:** {question}",
+        f"- **Generated:** {datetime.now().isoformat(timespec='seconds')}",
+        f"- **Sufficient:** {out.get('sufficient', False)} | "
+        f"Iterations: {out.get('iteration', 0)} | "
+        f"Searches: {out.get('search_calls', 0)} | "
+        f"Tokens: {out.get('total_tokens', 0)} | "
+        f"Est. cost: ${out.get('total_cost', 0.0):.4f}",
+        "",
+        "## Answer",
+        "",
+        out.get("answer", ""),
+        "",
+    ]
+    findings = out.get("findings") or []
+    if findings:
+        lines += ["## Findings", ""]
+        for f in findings:
+            refs = ", ".join(f.get("source_urls") or [])
+            lines.append(
+                f"- ({f.get('confidence', '?')}) {f.get('claim', '')}"
+                + (f" — {refs}" if refs else "")
+            )
+        lines.append("")
+    sources = out.get("sources") or []
+    if sources:
+        lines += ["## Sources", ""]
+        for i, s in enumerate(sources, 1):
+            lines.append(f"{i}. [{s.get('title', '')}]({s.get('url', '')})")
+        lines.append("")
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="webscout")
     parser.add_argument("question", nargs="*", help="research question")
+    parser.add_argument("--out", default=None, help="write a markdown report to this path (one-shot mode)")
     args = parser.parse_args(argv)
     require_openrouter_key()
     if args.question:
-        _print_result(run_pipeline(" ".join(args.question)))
+        question = " ".join(args.question)
+        out = run_pipeline(question)
+        _print_result(out)
+        if args.out:
+            write_report(question, out, args.out)
+            print(f"[report] written to {args.out}")
         return
     while True:
         try:

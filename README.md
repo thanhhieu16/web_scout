@@ -66,7 +66,15 @@ uv run python -m app.main
 webscout> your question here
 ```
 
-Output prints progress per node (`[research] ...`, `[verify] ...`, `[answer] ...`), then the answer followed by numbered sources. Answer language follows the language of the question.
+Output prints progress per node (`[research] ...`, `[verify] ...`, `[answer] ...`), then the answer followed by numbered sources and a METRICS line (iterations, searches, sources, tokens, estimated cost). Answer language follows the language of the question.
+
+Export a markdown report:
+
+```powershell
+uv run python -m app.main "What changed in the EU AI Act in 2026?" --out report.md
+```
+
+`.env` is loaded automatically at startup — no manual `$env:` exports needed for `OPENROUTER_API_KEY` / `LANGSMITH_*` (existing OS environment variables still take precedence).
 
 ## Testing
 

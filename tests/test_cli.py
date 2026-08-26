@@ -166,6 +166,43 @@ def test_run_pipeline_injected_graph_works_without_api_key(monkeypatch):
     assert out["answer"] == "Final [1]."
 
 
-def test_require_openrouter_key_message():
+def test_require_openrouter_key_message(monkeypatch):
+    monkeypatch.delenv('OPENROUTER_API_KEY', raising=False)
     with pytest.raises(SystemExit, match="OPENROUTER_API_KEY is not set"):
         require_openrouter_key(Settings(_env_file=None))
+
+
+def test_write_report_markdown(tmp_path):
+    from app.main import write_report
+
+    out = {
+        "answer": "Body text [1].",
+        "sources": [{"url": "https://a.dev", "title": "A"}],
+        "findings": [{"claim": "Claim A", "source_urls": ["https://a.dev"], "confidence": "high"}],
+        "sufficient": True,
+        "iteration": 1,
+        "search_calls": 2,
+        "total_tokens": 1234,
+        "total_cost": 0.0123,
+    }
+    path = tmp_path / "report.md"
+    write_report("Q?", out, str(path))
+    text = path.read_text(encoding="utf-8")
+    assert "# WebScout Report" in text
+    assert "**Question:** Q?" in text
+    assert "Body text [1]." in text
+    assert "(high) Claim A" in text
+    assert "[A](https://a.dev)" in text
+    assert "Est. cost: $0.0123" in text
+
+
+def test_run_pipeline_returns_usage_fields():
+    from app.main import run_pipeline
+
+    class FakeGraph:
+        def stream(self, state, stream_mode="updates"):
+            yield {"answer": {"answer": "done", "total_tokens": 500, "total_cost": 0.01}}
+
+    out = run_pipeline("Q?", graph=FakeGraph())
+    assert out["total_tokens"] == 500
+    assert abs(out["total_cost"] - 0.01) < 1e-9
