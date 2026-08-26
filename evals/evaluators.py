@@ -37,20 +37,64 @@ def correctness_evaluator(run, example) -> EvaluationResult:
     return EvaluationResult(key="correctness", score=score, comment=reason)
 
 
-def citation_support_evaluator(run, example) -> EvaluationResult:
+def citation_support_evaluator(run, example, judge=None) -> EvaluationResult:
     outputs = run.outputs or {}
     answer = outputs.get("answer", "")
     sources = outputs.get("sources") or []
     refs = {int(n) for n in _CITE_RE.findall(answer)}
     unresolved = [n for n in refs if n < 1 or n > len(sources)]
     if not refs or unresolved:
-        base = 0.0
-    else:
-        base = 1.0
+        return EvaluationResult(
+            key="citation_support",
+            score=0.0,
+            comment=f"unresolved={unresolved}, refs={sorted(refs)}",
+        )
+    cited = sorted(refs)
+    pair = next(
+        (
+            (n, str((sources[n - 1] or {}).get("excerpt") or ""))
+            for n in cited
+            if str((sources[n - 1] or {}).get("excerpt") or "").strip()
+        ),
+        None,
+    )
+    if pair is None:
+        return EvaluationResult(
+            key="citation_support",
+            score=1.0,
+            comment=f"resolved refs, no excerpts to check: {cited}",
+        )
+    _, excerpt = pair
+    active_judge = judge or get_model("verifier")
+    verdict = active_judge.invoke(
+        [
+            (
+                "system",
+                'You verify whether an excerpt supports an answer claim. '
+                'Reply JSON {"supported": bool}.',
+            ),
+            ("human", f"Answer claim:\n{answer}\n\nExcerpt:\n{excerpt}"),
+        ]
+    )
+    try:
+        parsed = json.loads(re.search(r"\{[\s\S]*\}", str(verdict.content)).group(0))
+        supported = bool(parsed["supported"])
+    except Exception as exc:
+        return EvaluationResult(
+            key="citation_support",
+            score=0.5,
+            comment=f"judge parse failure for ref [{pair[0]}]: {exc}",
+        )
+    if supported:
+        return EvaluationResult(
+            key="citation_support",
+            score=1.0,
+            comment=f"excerpt supports ref [{pair[0]}]",
+        )
     return EvaluationResult(
         key="citation_support",
-        score=base,
-        comment=f"unresolved={unresolved}, refs={sorted(refs)}",
+        score=0.5,
+        comment=f"judge says excerpt does not support ref [{pair[0]}]",
     )
 
 

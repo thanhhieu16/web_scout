@@ -41,12 +41,52 @@ def test_citation_support_flags_unresolved_refs():
     result = citation_support_evaluator(
         _run("claim [3]", [{"url": "https://x"}]), EXAMPLE
     )
-    assert result.score <= 0.5
+    assert result.score == 0.0
 
 
-def test_citation_support_passes_resolved():
+def _fake_judge(reply):
+    def invoke(messages):
+        return SimpleNamespace(content=reply)
+
+    return SimpleNamespace(invoke=invoke)
+
+
+class ExplodingJudge:
+    def invoke(self, messages):
+        raise AssertionError("judge must not be called")
+
+
+def test_citation_support_judge_supported_scores_full():
     result = citation_support_evaluator(
         _run("claim [1] done", [{"url": "https://x", "title": "X", "excerpt": "claim"}]),
         EXAMPLE,
+        judge=_fake_judge('{"supported": true}'),
     )
-    assert result.score >= 0.5
+    assert result.score == 1.0
+
+
+def test_citation_support_judge_unsupported_scores_half():
+    result = citation_support_evaluator(
+        _run("claim [1] done", [{"url": "https://x", "title": "X", "excerpt": "claim"}]),
+        EXAMPLE,
+        judge=_fake_judge('{"supported": false}'),
+    )
+    assert result.score == 0.5
+
+
+def test_citation_support_judge_garbage_scores_half():
+    result = citation_support_evaluator(
+        _run("claim [1] done", [{"url": "https://x", "title": "X", "excerpt": "claim"}]),
+        EXAMPLE,
+        judge=_fake_judge("total garbage"),
+    )
+    assert result.score == 0.5
+
+
+def test_citation_support_no_excerpts_skips_judge():
+    result = citation_support_evaluator(
+        _run("claim [1] done", [{"url": "https://x", "title": "X", "excerpt": ""}]),
+        EXAMPLE,
+        judge=ExplodingJudge(),
+    )
+    assert result.score == 1.0

@@ -6,6 +6,8 @@ from pathlib import Path
 
 from langsmith import Client
 
+from app.config import get_settings
+
 DATASET_PATH = Path(__file__).parent / "dataset.json"
 DATASET_NAME = "webscout-evals-v1"
 
@@ -26,7 +28,7 @@ def target(inputs: dict) -> dict:
         {
             "question": inputs["question"],
             "iteration": 0,
-            "max_iterations": 3,
+            "max_iterations": get_settings().max_iterations,
         }
     )
     return {
