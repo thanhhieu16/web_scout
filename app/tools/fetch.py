@@ -34,10 +34,10 @@ def _is_blocked_ip(raw: str) -> bool:
         ip = ipaddress.ip_address(raw)
     except ValueError:
         return True
-    # is_global is False for every non-public range — private, loopback,
-    # link-local, reserved, multicast, unspecified, and CGNAT (100.64.0.0/10),
-    # which an explicit predicate enumeration missed.
-    return not ip.is_global
+    # is_global is False for private, loopback, link-local, unspecified and
+    # CGNAT (100.64.0.0/10) — but it does NOT cover multicast, and on IPv6 it
+    # never consults the reserved list. Union the three or those slip through.
+    return not ip.is_global or ip.is_multicast or ip.is_reserved
 
 
 def check_url(url: str, cfg: FetchConfig, resolve=default_resolve) -> str | None:

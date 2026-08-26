@@ -63,6 +63,30 @@ def test_check_url_rejects_cgnat_shared_address_space():
     assert msg is not None
 
 
+def test_check_url_rejects_multicast_ipv4():
+    assert check_url(
+        "http://mcast.example/x", FetchConfig(), lambda host: ["239.255.255.250"]
+    ) is not None
+
+
+def test_check_url_rejects_multicast_ipv6():
+    assert check_url(
+        "http://mcast6.example/x", FetchConfig(), lambda host: ["ff02::1"]
+    ) is not None
+
+
+def test_check_url_rejects_ipv6_reserved():
+    assert check_url(
+        "http://res6.example/x", FetchConfig(), lambda host: ["5f00::1"]
+    ) is not None
+
+
+def test_check_url_allows_public_ipv6():
+    assert check_url(
+        "https://v6.example/x", FetchConfig(), lambda host: ["2001:4860:4860::8888"]
+    ) is None
+
+
 def test_tool_blocks_redirect_into_private_network():
     def handler(request):
         if request.url.path == "/start":
