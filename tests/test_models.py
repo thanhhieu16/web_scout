@@ -67,3 +67,11 @@ def test_create_chat_result_lifts_annotations():
     assert isinstance(msg, AIMessage)
     anns = msg.additional_kwargs["annotations"]
     assert anns[0]["url_citation"]["url"] == "https://a.dev"
+
+
+def test_get_model_retries_and_timeout():
+    from app.models import get_model
+
+    m = get_model("verifier")
+    assert m.max_retries == 4
+    assert m.request_timeout == 180

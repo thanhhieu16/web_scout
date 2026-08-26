@@ -49,4 +49,6 @@ def get_model(role: str = "researcher", settings=None):
         temperature=cfg.temperature,
         api_key=s.openrouter_api_key or "not-set",
         base_url=s.openrouter_base_url,
+        max_retries=4,
+        timeout=180,
     )
