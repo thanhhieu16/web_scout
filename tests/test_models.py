@@ -92,5 +92,9 @@ def test_cost_present_in_response_metadata():
         pytest.skip("needs OPENROUTER_API_KEY")
     reply = get_model("verifier").invoke([("human", "Reply with the single word: ok")])
     token_usage = reply.response_metadata.get("token_usage") or {}
+    # The `cost` key only appears when the request asks for usage accounting.
+    # Its VALUE depends on the model's price list — stealth/ox-alpha is priced
+    # at 0/0, so assert presence and a real token spend, not a positive cost.
     assert "cost" in token_usage, f"no cost in {token_usage}"
-    assert float(token_usage["cost"]) > 0
+    assert float(token_usage["cost"]) >= 0
+    assert int(token_usage.get("total_tokens", 0)) > 0, f"no tokens consumed: {token_usage}"
