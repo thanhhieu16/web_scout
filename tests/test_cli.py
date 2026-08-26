@@ -112,12 +112,50 @@ def test_interactive_eof_exits_cleanly(monkeypatch, capsys):
     assert captured.err == ""
 
 
+def _state_reducers() -> dict:
+    """The reducer for each Annotated field on ResearchState, keyed by field name."""
+    from typing import get_type_hints
+
+    from app.state import ResearchState
+
+    hints = get_type_hints(ResearchState, include_extras=True)
+    return {
+        name: hint.__metadata__[0]
+        for name, hint in hints.items()
+        if hasattr(hint, "__metadata__")
+    }
+
+
 class FakeGraph:
-    def __init__(self, deltas):
-        self._deltas = deltas
+    """Stands in for LangGraph's real .stream(): a bare string stream_mode (e.g.
+    "updates") yields each node's raw delta dict directly, exactly like the real
+    single-mode contract; a list stream_mode (e.g. ["updates", "values"]) yields
+    (mode, chunk) tuples, where "values" chunks carry the fully-reduced running
+    state — computed here by applying ResearchState's own reducers, the same way
+    LangGraph does internally."""
+
+    def __init__(self, node_deltas):
+        self._node_deltas = node_deltas  # list of {node_name: delta_dict}
 
     def stream(self, state, stream_mode="updates"):
-        yield from self._deltas
+        if isinstance(stream_mode, (list, tuple)) and "values" in stream_mode:
+            yield from self._stream_with_values(state)
+        else:
+            yield from self._node_deltas
+
+    def _stream_with_values(self, state):
+        reducers = _state_reducers()
+        values = dict(state)
+        for update in self._node_deltas:
+            for node, delta in update.items():
+                yield ("updates", {node: delta})
+                for key, val in delta.items():
+                    reducer = reducers.get(key)
+                    if reducer is not None and key in values:
+                        values[key] = reducer(values[key], val)
+                    else:
+                        values[key] = val
+                yield ("values", dict(values))
 
 
 DELTAS = [
@@ -171,6 +209,76 @@ def test_main_fast_fails_without_api_key(monkeypatch):
         main(["q"])
 
 
+TWO_ITERATION_DELTAS = [
+    {
+        "research": {
+            "findings": [{"claim": "c1", "source_urls": ["https://s1"], "confidence": "high"}],
+            "sources": [
+                {"url": "https://s1", "title": "S1", "source_type": "secondary", "excerpt": ""}
+            ],
+            "weak_claims": [],
+            "iteration": 1,
+            "search_calls": 2,
+            "total_tokens": 100,
+            "total_cost": 0.01,
+        }
+    },
+    {
+        "verify": {
+            "sufficient": False,
+            "gaps": ["need more"],
+            "weak_claims": [],
+            "contradictory_claims": [],
+            "total_tokens": 10,
+            "total_cost": 0.001,
+        }
+    },
+    {
+        "research": {
+            "findings": [{"claim": "c2", "source_urls": ["https://s2"], "confidence": "medium"}],
+            "sources": [
+                {"url": "https://s2", "title": "S2", "source_type": "secondary", "excerpt": ""}
+            ],
+            "weak_claims": [],
+            "iteration": 1,
+            "search_calls": 3,
+            "total_tokens": 200,
+            "total_cost": 0.02,
+        }
+    },
+    {
+        "verify": {
+            "sufficient": True,
+            "gaps": [],
+            "weak_claims": [],
+            "contradictory_claims": [],
+            "total_tokens": 10,
+            "total_cost": 0.001,
+        }
+    },
+    {
+        "answer": {
+            "answer": "Final answer citing both [1][2].",
+            "total_tokens": 50,
+            "total_cost": 0.005,
+        }
+    },
+]
+
+
+def test_run_pipeline_survives_two_research_iterations():
+    """Regression for the Critical finding: streaming raw per-node deltas through
+    dict.update() silently overwrote the first research pass's findings/sources
+    and reset the iteration count once nodes stopped returning running totals."""
+    from app.main import run_pipeline
+
+    out = run_pipeline("Q?", graph=FakeGraph(TWO_ITERATION_DELTAS))
+    assert out["iteration"] == 2
+    assert [s["url"] for s in out["sources"]] == ["https://s1", "https://s2"]
+    assert [f["claim"] for f in out["findings"]] == ["c1", "c2"]
+    assert out["search_calls"] == 5
+
+
 def test_run_pipeline_injected_graph_works_without_api_key(monkeypatch):
     from app.main import run_pipeline
 
@@ -216,7 +324,9 @@ def test_run_pipeline_returns_usage_fields():
 
     class FakeGraph:
         def stream(self, state, stream_mode="updates"):
-            yield {"answer": {"answer": "done", "total_tokens": 500, "total_cost": 0.01}}
+            delta = {"answer": "done", "total_tokens": 500, "total_cost": 0.01}
+            yield ("updates", {"answer": delta})
+            yield ("values", {**state, **delta})
 
     out = run_pipeline("Q?", graph=FakeGraph())
     assert out["total_tokens"] == 500

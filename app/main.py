@@ -54,11 +54,12 @@ def run_pipeline(question: str, graph=None) -> dict:
     s = get_settings()
     state = {"question": question, "iteration": 0, "max_iterations": s.max_iterations}
     final = dict(state)
-    for update in g.stream(state, stream_mode="updates"):
-        for node, delta in update.items():
-            print(f"[{node}] ...", flush=True)
-            if isinstance(delta, dict):
-                final.update(delta)
+    for mode, chunk in g.stream(state, stream_mode=["updates", "values"]):
+        if mode == "updates":
+            for node in chunk:
+                print(f"[{node}] ...", flush=True)
+        else:
+            final = chunk
     return {
         "answer": final.get("answer", ""),
         "sources": final.get("sources", []),
