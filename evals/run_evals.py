@@ -7,6 +7,7 @@ from pathlib import Path
 from langsmith import Client
 
 from app.config import get_settings
+from app.main import require_openrouter_key
 
 DATASET_PATH = Path(__file__).parent / "dataset.json"
 DATASET_NAME = "webscout-evals-v1"
@@ -55,6 +56,7 @@ def main(argv=None) -> None:
     parser.add_argument("--experiment-prefix", default="webscout-run")
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args(argv)
+    require_openrouter_key(get_settings())
 
     from evals.evaluators import (
         citation_support_evaluator,

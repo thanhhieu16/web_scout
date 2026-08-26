@@ -13,6 +13,14 @@ from app.nodes.parsing import (
 )
 
 
+def require_openrouter_key(settings=None) -> None:
+    s = settings or get_settings()
+    if not s.openrouter_api_key:
+        raise SystemExit(
+            "OPENROUTER_API_KEY is not set. Copy .env.example to .env and fill it in."
+        )
+
+
 def run_question(question: str, agent=None, settings=None) -> dict:
     s = settings or get_settings()
     deep = agent or build_research_agent(s)
@@ -38,6 +46,8 @@ def run_question(question: str, agent=None, settings=None) -> dict:
 
 
 def run_pipeline(question: str, graph=None) -> dict:
+    if graph is None:
+        require_openrouter_key()
     g = graph or build_graph()
     s = get_settings()
     state = {"question": question, "iteration": 0, "max_iterations": s.max_iterations}
@@ -70,6 +80,7 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="webscout")
     parser.add_argument("question", nargs="*", help="research question")
     args = parser.parse_args(argv)
+    require_openrouter_key()
     if args.question:
         _print_result(run_pipeline(" ".join(args.question)))
         return

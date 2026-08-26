@@ -143,3 +143,4 @@ tests/           unit suite (+ integration marker)
 
 - **Unicode errors on Windows consoles** (`cp65001` print failures): set `$env:PYTHONIOENCODING="utf-8"` in your PowerShell session before running.
 - **`webscout` command not found**: expected — no build-system is declared yet; use `uv run python -m app.main ...` instead.
+- **Missing API key**: `webscout` (and `evals/run_evals.py`) exit immediately with `OPENROUTER_API_KEY is not set. Copy .env.example to .env and fill it in.` instead of failing mid-run with a cryptic OpenRouter 401.

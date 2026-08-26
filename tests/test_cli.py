@@ -1,7 +1,8 @@
 import pytest
 
 import app.main
-from app.main import main, run_question
+from app.config import Settings
+from app.main import main, require_openrouter_key, run_question
 
 
 def _cli_message():
@@ -85,6 +86,11 @@ def test_one_shot_never_reads_stdin(monkeypatch, capsys):
 
     monkeypatch.setattr("builtins.input", forbidden_input)
     monkeypatch.setattr(app.main, "run_pipeline", fake_pipeline)
+    monkeypatch.setattr(
+        app.main,
+        "get_settings",
+        lambda: Settings(_env_file=None, openrouter_api_key="test-key"),
+    )
     main(["why?"])
     captured = capsys.readouterr()
     assert "=== ANSWER ===" in captured.out
@@ -96,6 +102,11 @@ def test_interactive_eof_exits_cleanly(monkeypatch, capsys):
         raise EOFError
 
     monkeypatch.setattr("builtins.input", raise_eof)
+    monkeypatch.setattr(
+        app.main,
+        "get_settings",
+        lambda: Settings(_env_file=None, openrouter_api_key="test-key"),
+    )
     main([])
     captured = capsys.readouterr()
     assert captured.err == ""
@@ -127,3 +138,34 @@ def test_run_pipeline_prints_progress_and_answer(capsys):
     assert out["answer"] == "Final [1]."
     assert out["search_calls"] == 3
     assert out["sufficient"] is True
+
+
+def test_main_fast_fails_without_api_key(monkeypatch):
+    def forbidden_input(prompt=""):
+        raise AssertionError("input must not be called without an API key")
+
+    def forbidden_pipeline(question, graph=None):
+        raise AssertionError("run_pipeline must not run without an API key")
+
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("WEBCOUT_OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(app.main, "get_settings", lambda: Settings(_env_file=None))
+    monkeypatch.setattr("builtins.input", forbidden_input)
+    monkeypatch.setattr(app.main, "run_pipeline", forbidden_pipeline)
+    with pytest.raises(SystemExit):
+        main(["q"])
+
+
+def test_run_pipeline_injected_graph_works_without_api_key(monkeypatch):
+    from app.main import run_pipeline
+
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("WEBCOUT_OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(app.main, "get_settings", lambda: Settings(_env_file=None))
+    out = run_pipeline("Q?", graph=FakeGraph(DELTAS))
+    assert out["answer"] == "Final [1]."
+
+
+def test_require_openrouter_key_message():
+    with pytest.raises(SystemExit, match="OPENROUTER_API_KEY is not set"):
+        require_openrouter_key(Settings(_env_file=None))
