@@ -34,14 +34,10 @@ def _is_blocked_ip(raw: str) -> bool:
         ip = ipaddress.ip_address(raw)
     except ValueError:
         return True
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
+    # is_global is False for every non-public range — private, loopback,
+    # link-local, reserved, multicast, unspecified, and CGNAT (100.64.0.0/10),
+    # which an explicit predicate enumeration missed.
+    return not ip.is_global
 
 
 def check_url(url: str, cfg: FetchConfig, resolve=default_resolve) -> str | None:
@@ -83,6 +79,7 @@ def make_web_fetch(
             f"({cfg.max_download_bytes})"
         )
         current = url
+        text: str | None = None
         try:
             with httpx.Client(
                 timeout=cfg.timeout_seconds,
@@ -95,7 +92,7 @@ def make_web_fetch(
                     if blocked:
                         return blocked
                     with client.stream("GET", current) as resp:
-                        if resp.is_redirect:
+                        if resp.has_redirect_location:
                             location = resp.headers.get("location")
                             if not location:
                                 return "FETCH_ERROR: redirect without a location header"
@@ -115,9 +112,15 @@ def make_web_fetch(
                         if "html" not in ctype and "text" not in ctype:
                             return f"FETCH_ERROR: unsupported content-type {ctype}"
                         text = bytes(buf).decode(resp.encoding or "utf-8", errors="replace")
-                        return clean_html(text, cfg.max_chars)
-                return f"FETCH_ERROR: exceeded max_redirects ({cfg.max_redirects})"
+                        break
+                else:
+                    return f"FETCH_ERROR: exceeded max_redirects ({cfg.max_redirects})"
         except Exception as exc:
             return f"FETCH_ERROR: {type(exc).__name__}: {exc}"
+        # Extraction runs outside the network try/except: a bug in clean_html
+        # (or trafilatura) must propagate as a real exception, not get
+        # reported to the agent as a routine FETCH_ERROR.
+        assert text is not None
+        return clean_html(text, cfg.max_chars)
 
     return web_fetch

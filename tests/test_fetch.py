@@ -31,10 +31,26 @@ def test_tool_returns_error_for_bad_scheme():
     assert out.startswith("FETCH_ERROR")
 
 
-def test_tool_returns_error_for_unreachable_host():
+def test_tool_returns_error_for_loopback_host():
+    # 127.0.0.1 is rejected by the guard before any socket is opened, so this
+    # exercises check_url's loopback rejection, not a real connection attempt.
     tool = make_web_fetch(FetchConfig(timeout_seconds=2.0))
     out = tool.invoke({"url": "http://127.0.0.1:9/nope"})
     assert out.startswith("FETCH_ERROR")
+
+
+def test_tool_returns_error_for_connect_failure():
+    # The guard lets a public address through; this covers the transport-error
+    # path that the guard no longer exercises for 127.0.0.1.
+    def handler(request):
+        raise httpx.ConnectError("connection refused", request=request)
+
+    tool = make_web_fetch(
+        FetchConfig(), transport=httpx.MockTransport(handler), resolve=_public_resolver
+    )
+    out = tool.invoke({"url": "https://ok.example/page"})
+    assert out.startswith("FETCH_ERROR")
+    assert "ConnectError" in out
 
 
 def test_tool_rejects_content_length_over_cap():

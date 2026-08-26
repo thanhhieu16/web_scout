@@ -44,7 +44,7 @@ def test_check_url_allows_private_when_opted_in():
 
 def test_tool_blocks_private_host():
     def handler(request):
-        raise AssertionError("request must not be sent to a private host")
+        raise AssertionError("handler must not be reached")
 
     tool = make_web_fetch(
         FetchConfig(),
@@ -53,7 +53,14 @@ def test_tool_blocks_private_host():
     )
     out = tool.invoke({"url": "http://internal.example/x"})
     assert out.startswith("FETCH_ERROR")
-    assert "private" in out
+    assert "refusing to fetch" in out
+
+
+def test_check_url_rejects_cgnat_shared_address_space():
+    msg = check_url(
+        "http://fabric.example/x", FetchConfig(), lambda host: ["100.64.1.1"]
+    )
+    assert msg is not None
 
 
 def test_tool_blocks_redirect_into_private_network():
