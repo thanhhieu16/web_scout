@@ -4,7 +4,7 @@ from typing import Callable
 from app.backoff import call_with_backoff
 from app.config import Settings
 from app.nodes.parsing import (
-    collect_citations,
+    build_sources,
     count_total_searches,
     map_refs_to_urls,
     parse_findings_block,
@@ -28,6 +28,12 @@ def build_research_input(state: ResearchState) -> str:
                 "Missing evidence — research ONLY these points:\n- "
                 + "\n- ".join(gaps)
             )
+    parts.append(
+        "Reminder: discover sources with the web search capability first, then "
+        "end your final reply with the ## FINDINGS block exactly as your "
+        "instructions specify (one '- [Sn] claim | confidence: ...' line per "
+        "finding)."
+    )
     return "\n\n".join(parts)
 
 
@@ -42,9 +48,9 @@ def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], d
         messages = result["messages"]
         message = messages[-1]
         findings, refs, _ = parse_findings_block(str(message.content))
-        citations = collect_citations(messages)
-        findings, _ = map_refs_to_urls(findings, refs, citations)
-        sources, unknown = reconcile_sources(findings, citations)
+        sources, ref_order = build_sources(messages)
+        findings, _ = map_refs_to_urls(findings, refs, ref_order)
+        _, unknown = reconcile_sources(findings, ref_order)
         unknown_set = set(unknown)
         seen_weak: set[str] = set()
         weak: list[str] = []

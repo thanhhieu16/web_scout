@@ -106,6 +106,57 @@ def count_total_searches(messages) -> int:
     return total
 
 
+def collect_fetched_sources(messages) -> "list[Source]":
+    pending: dict[str, str] = {}
+    out: list[Source] = []
+    seen: set[str] = set()
+    for message in messages:
+        tool_calls = getattr(message, "tool_calls", None) or []
+        for call in tool_calls:
+            if call.get("name") == "web_fetch":
+                url = (call.get("args") or {}).get("url")
+                if url and not url.startswith("FETCH_ERROR"):
+                    pending[call.get("id")] = url
+        content = getattr(message, "content", "")
+        if isinstance(content, list):
+            content = str(content)
+        if getattr(message, "type", "") == "tool" and str(
+            getattr(message, "tool_call_id", "")
+        ) in pending:
+            url = pending.pop(str(message.tool_call_id))
+            text = str(content)
+            if text.startswith("FETCH_ERROR") or url in seen:
+                continue
+            seen.add(url)
+            out.append(Source(url=url, title=url, source_type="secondary", excerpt=text[:500]))
+    return out
+
+
+def build_sources(messages) -> "tuple[list[Source], list[dict]]":
+    citations = collect_citations(messages)
+    fetched = collect_fetched_sources(messages)
+    known: dict[str, Source] = {}
+    ordered: list[Source] = []
+    for cite in citations:
+        url = cite.get("url")
+        if not url or url in known:
+            continue
+        source = Source(
+            url=url,
+            title=cite.get("title") or url,
+            source_type="secondary",
+            excerpt=(cite.get("content") or "")[:500],
+        )
+        known[url] = source
+        ordered.append(source)
+    for source in fetched:
+        if source["url"] not in known:
+            known[source["url"]] = source
+            ordered.append(source)
+    ref_order = [{"url": s["url"]} for s in ordered]
+    return ordered, ref_order
+
+
 def reconcile_sources(
     findings: list[Finding], citations: list[dict]
 ) -> tuple[list[Source], list[str]]:

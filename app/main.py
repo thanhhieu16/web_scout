@@ -5,7 +5,7 @@ from app.agent import build_research_agent
 from app.config import get_settings
 from app.graph import build_graph
 from app.nodes.parsing import (
-    collect_citations,
+    build_sources,
     count_total_searches,
     map_refs_to_urls,
     parse_findings_block,
@@ -31,9 +31,9 @@ def run_question(question: str, agent=None, settings=None) -> dict:
     messages = result["messages"]
     message = messages[-1]
     findings, refs, narrative = parse_findings_block(str(message.content))
-    citations = collect_citations(messages)
-    findings, _ = map_refs_to_urls(findings, refs, citations)
-    sources, unknown = reconcile_sources(findings, citations)
+    sources, ref_order = build_sources(messages)
+    findings, _ = map_refs_to_urls(findings, refs, ref_order)
+    _, unknown = reconcile_sources(findings, ref_order)
     searches = count_total_searches(messages)
     if unknown:
         print(f"[warn] {len(unknown)} uncited URL(s) ignored", file=sys.stderr)
