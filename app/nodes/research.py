@@ -1,6 +1,7 @@
 import json
 from typing import Callable
 
+from app.backoff import call_with_backoff
 from app.config import Settings
 from app.nodes.parsing import (
     collect_citations,
@@ -33,7 +34,8 @@ def build_research_input(state: ResearchState) -> str:
 def make_research_node(agent, settings: Settings) -> Callable[[ResearchState], dict]:
     def research(state: ResearchState) -> dict:
         prompt = build_research_input(state)
-        result = agent.invoke(
+        result = call_with_backoff(
+            agent.invoke,
             {"messages": [{"role": "user", "content": prompt}]},
             config={"recursion_limit": 50},
         )

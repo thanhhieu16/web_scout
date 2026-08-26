@@ -5,6 +5,7 @@ from typing import Callable
 
 from pydantic import ValidationError
 
+from app.backoff import call_with_backoff
 from app.config import Settings
 from app.schemas import VerificationResult
 from app.state import ResearchState
@@ -50,8 +51,8 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
             + json.dumps(state.get("sources") or [], ensure_ascii=False, indent=2)
         )
         try:
-            reply = llm.invoke(
-                [("system", VERIFY_SYSTEM_PROMPT), ("human", human)]
+            reply = call_with_backoff(
+                llm.invoke, [("system", VERIFY_SYSTEM_PROMPT), ("human", human)]
             )
             result = _parse_verdict(str(reply.content))
         except ValueError:
@@ -60,8 +61,8 @@ def make_verify_node(settings: Settings, model=None) -> Callable[[ResearchState]
                 + "\n\nYour previous reply was not valid JSON. "
                 "Reply with JSON only, exactly the specified shape."
             )
-            reply = llm.invoke(
-                [("system", VERIFY_SYSTEM_PROMPT), ("human", retry_human)]
+            reply = call_with_backoff(
+                llm.invoke, [("system", VERIFY_SYSTEM_PROMPT), ("human", retry_human)]
             )
             try:
                 result = _parse_verdict(str(reply.content))

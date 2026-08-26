@@ -1,5 +1,6 @@
 from typing import Callable
 
+from app.backoff import call_with_backoff
 from app.config import Settings
 from app.state import ResearchState
 
@@ -43,7 +44,7 @@ def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState]
                 "The verification budget was exhausted without full confidence. "
                 "Explicitly state the remaining uncertainty in the answer."
             )
-        reply = llm.invoke("\n\n".join(sections))
+        reply = call_with_backoff(llm.invoke, "\n\n".join(sections))
         return {"answer": str(reply.content).strip()}
 
     return answer
