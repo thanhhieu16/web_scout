@@ -1,6 +1,7 @@
 import pytest
 
-from app.main import run_question
+import app.main
+from app.main import main, run_question
 
 
 class FakeAgent:
@@ -47,3 +48,28 @@ def test_cli_real_roundtrip():
     out = run_question("Deep agents la gi? Tra loii ngan.")
     assert out["sources"], "expected at least one citation"
     assert "[S" in out["answer"] or out["answer"].strip()
+
+
+def test_one_shot_never_reads_stdin(monkeypatch, capsys):
+    def forbidden_input(prompt=""):
+        raise AssertionError("input must not be called in one-shot mode")
+
+    def fake_run(question, agent=None, settings=None):
+        return {"answer": "canned answer", "sources": [], "findings": [], "search_calls": 0}
+
+    monkeypatch.setattr("builtins.input", forbidden_input)
+    monkeypatch.setattr(app.main, "run_question", fake_run)
+    main(["why?"])
+    captured = capsys.readouterr()
+    assert "=== ANSWER ===" in captured.out
+    assert "canned answer" in captured.out
+
+
+def test_interactive_eof_exits_cleanly(monkeypatch, capsys):
+    def raise_eof(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", raise_eof)
+    main([])
+    captured = capsys.readouterr()
+    assert captured.err == ""

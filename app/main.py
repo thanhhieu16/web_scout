@@ -48,14 +48,18 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="webscout")
     parser.add_argument("question", nargs="*", help="research question")
     args = parser.parse_args(argv)
-    questions = [" ".join(args.question)] if args.question else None
+    if args.question:
+        _print_result(run_question(" ".join(args.question)))
+        return
     while True:
-        q = questions.pop(0) if questions else input("\nwebscout> ").strip()
+        try:
+            q = input("\nwebscout> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
         if not q or q.lower() in {"exit", "quit"}:
             break
         _print_result(run_question(q))
-        if questions:
-            break
 
 
 if __name__ == "__main__":
