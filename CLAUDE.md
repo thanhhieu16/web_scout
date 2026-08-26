@@ -51,7 +51,7 @@ The agent returns only prose. [build_sources](app/nodes/parsing.py) rebuilds the
 
 ### The FINDINGS contract
 
-The research prompt ends every reply with a `## FINDINGS` block whose lines are parsed by strict regex in [parse_findings_block](app/nodes/parsing.py) (`- [Sn] claim | confidence: high|medium|low`). `map_refs_to_urls` then resolves `Sn` to the nth URL from `build_sources`; unresolvable refs become `unresolved:Sn` and are surfaced as `weak_claims` by the research node. **`RESEARCH_SYSTEM_PROMPT`, `_LINE_RE`, and `map_refs_to_urls` must change together.**
+The research prompt ends every reply with a `## FINDINGS` block whose lines are parsed by strict regex in [parse_findings_block](app/nodes/parsing.py) (`- [Sn]... claim | confidence: high|medium|low`). A line may carry several refs (`- [S1][S2] claim | ...`); `parse_findings_block` returns a `FindingsParse` NamedTuple whose `dropped` and `block_found` fields surface contract violations as `weak_claims`. `map_refs_to_urls` then resolves each `Sn` to the nth URL from `build_sources`; unresolvable refs become `unresolved:Sn` and are surfaced as `weak_claims` by the research node. **`RESEARCH_SYSTEM_PROMPT`, `_LINE_RE`, and `map_refs_to_urls` must change together.**
 
 ### State accumulation runs through reducers
 

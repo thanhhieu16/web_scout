@@ -33,10 +33,11 @@ Output contract — end EVERY final reply with exactly this block:
 
 ## FINDINGS
 - [S1] <one factual claim> | confidence: high|medium|low
-- [S2] <one factual claim> | confidence: high|medium|low
+- [S1][S2] <a claim confirmed by two sources> | confidence: high|medium|low
 
 Where [Sn] refers to the nth URL in the sources you used, counted in the
-order you first used them. One line per claim. No prose inside the block."""
+order you first used them. Cite EVERY source that supports the claim, not
+just the first. One line per claim. No prose inside the block."""
 
 
 def build_research_agent(settings: Settings | None = None):

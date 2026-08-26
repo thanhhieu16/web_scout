@@ -11,6 +11,10 @@ def test_system_prompt_contains_contract():
     assert "Never invent" in p
 
 
+def test_system_prompt_documents_multi_ref():
+    assert "[S1][S2]" in RESEARCH_SYSTEM_PROMPT
+
+
 def test_build_research_agent_offline_construction(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     s = Settings(_env_file=None)  # type: ignore[call-arg]

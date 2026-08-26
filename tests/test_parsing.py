@@ -151,3 +151,24 @@ def test_parse_ignores_trailing_prose_after_block():
     parsed = parse_findings_block(text)
     assert len(parsed.findings) == 1
     assert parsed.dropped == []
+
+
+def test_parse_accepts_multiple_refs_per_claim():
+    text = "## FINDINGS\n- [S1][S2] Cross-checked claim | confidence: high\n"
+    parsed = parse_findings_block(text)
+    assert parsed.refs == [["S1", "S2"]]
+    assert parsed.findings[0]["claim"] == "Cross-checked claim"
+
+
+def test_parse_accepts_comma_separated_refs():
+    text = "## FINDINGS\n- [S1], [S3] Another claim | confidence: medium\n"
+    assert parse_findings_block(text).refs == [["S1", "S3"]]
+
+
+def test_multi_ref_maps_to_multiple_urls():
+    parsed = parse_findings_block(
+        "## FINDINGS\n- [S1][S2] Cross-checked | confidence: high\n"
+    )
+    citations = [{"url": "https://a.dev"}, {"url": "https://b.dev"}]
+    mapped, _ = map_refs_to_urls(parsed.findings, parsed.refs, citations)
+    assert mapped[0]["source_urls"] == ["https://a.dev", "https://b.dev"]

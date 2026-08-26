@@ -5,10 +5,11 @@ from app.schemas import Finding, Source
 from app.tools.search import count_web_searches
 
 _LINE_RE = re.compile(
-    r"^-\s*\[(?P<ref>S\d+)\]\s+(?P<claim>.+?)\s*\|\s*confidence:\s*"
+    r"^-\s*(?P<refs>(?:\[S\d+\][\s,]*)+)\s*(?P<claim>.+?)\s*\|\s*confidence:\s*"
     r"(?P<conf>high|medium|low)\s*$",
     re.IGNORECASE,
 )
+_REF_RE = re.compile(r"S\d+", re.IGNORECASE)
 _BLOCK_RE = re.compile(r"^##\s*FINDINGS\s*$", re.IGNORECASE | re.MULTILINE)
 # A line that opens like a finding but fails _LINE_RE is a possibly-lost claim.
 # Anything else after the block is trailing prose, not evidence.
@@ -47,7 +48,7 @@ def parse_findings_block(text: str) -> FindingsParse:
                 confidence=m.group("conf").lower(),
             )
         )
-        refs.append([m.group("ref")])
+        refs.append([r.upper() for r in _REF_RE.findall(m.group("refs"))])
     return FindingsParse(findings, refs, narrative, dropped, True)
 
 
