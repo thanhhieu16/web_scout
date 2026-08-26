@@ -54,11 +54,11 @@ def test_one_shot_never_reads_stdin(monkeypatch, capsys):
     def forbidden_input(prompt=""):
         raise AssertionError("input must not be called in one-shot mode")
 
-    def fake_run(question, agent=None, settings=None):
+    def fake_pipeline(question, graph=None):
         return {"answer": "canned answer", "sources": [], "findings": [], "search_calls": 0}
 
     monkeypatch.setattr("builtins.input", forbidden_input)
-    monkeypatch.setattr(app.main, "run_question", fake_run)
+    monkeypatch.setattr(app.main, "run_pipeline", fake_pipeline)
     main(["why?"])
     captured = capsys.readouterr()
     assert "=== ANSWER ===" in captured.out
@@ -73,3 +73,31 @@ def test_interactive_eof_exits_cleanly(monkeypatch, capsys):
     main([])
     captured = capsys.readouterr()
     assert captured.err == ""
+
+
+class FakeGraph:
+    def __init__(self, deltas):
+        self._deltas = deltas
+
+    def stream(self, state, stream_mode="updates"):
+        yield from self._deltas
+
+
+DELTAS = [
+    {"research": {"findings": [{"claim": "c", "source_urls": [], "confidence": "high"}], "sources": [{"url": "https://s", "title": "S", "source_type": "secondary", "excerpt": ""}], "iteration": 1, "search_calls": 3, "weak_claims": []}},
+    {"verify": {"sufficient": True, "gaps": [], "weak_claims": [], "contradictory_claims": []}},
+    {"answer": {"answer": "Final [1]."}},
+]
+
+
+def test_run_pipeline_prints_progress_and_answer(capsys):
+    from app.main import run_pipeline
+
+    out = run_pipeline("Q?", graph=FakeGraph(DELTAS))
+    captured = capsys.readouterr().out
+    assert "research" in captured
+    assert "verify" in captured
+    assert "answer" in captured
+    assert out["answer"] == "Final [1]."
+    assert out["search_calls"] == 3
+    assert out["sufficient"] is True

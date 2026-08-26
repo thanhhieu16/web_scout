@@ -3,6 +3,7 @@ import sys
 
 from app.agent import build_research_agent
 from app.config import get_settings
+from app.graph import build_graph
 from app.nodes.parsing import (
     extract_url_citations,
     map_refs_to_urls,
@@ -35,6 +36,26 @@ def run_question(question: str, agent=None, settings=None) -> dict:
     }
 
 
+def run_pipeline(question: str, graph=None) -> dict:
+    g = graph or build_graph()
+    s = get_settings()
+    state = {"question": question, "iteration": 0, "max_iterations": s.max_iterations}
+    final = dict(state)
+    for update in g.stream(state, stream_mode="updates"):
+        for node, delta in update.items():
+            print(f"[{node}] ...", flush=True)
+            if isinstance(delta, dict):
+                final.update(delta)
+    return {
+        "answer": final.get("answer", ""),
+        "sources": final.get("sources", []),
+        "findings": final.get("findings", []),
+        "search_calls": final.get("search_calls", 0),
+        "sufficient": final.get("sufficient", False),
+        "iteration": final.get("iteration", 0),
+    }
+
+
 def _print_result(out: dict) -> None:
     print("\n=== ANSWER ===\n")
     print(out["answer"])
@@ -49,7 +70,7 @@ def main(argv=None) -> None:
     parser.add_argument("question", nargs="*", help="research question")
     args = parser.parse_args(argv)
     if args.question:
-        _print_result(run_question(" ".join(args.question)))
+        _print_result(run_pipeline(" ".join(args.question)))
         return
     while True:
         try:
@@ -59,7 +80,7 @@ def main(argv=None) -> None:
             break
         if not q or q.lower() in {"exit", "quit"}:
             break
-        _print_result(run_question(q))
+        _print_result(run_pipeline(q))
 
 
 if __name__ == "__main__":
