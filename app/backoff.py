@@ -5,9 +5,13 @@ from langchain_openai.chat_models.base import OpenAIRateLimitError
 
 
 def _should_retry(exc: BaseException, retry_on) -> bool:
-    if callable(retry_on) and not isinstance(retry_on, tuple):
-        return bool(retry_on(exc))
-    return isinstance(exc, retry_on)
+    # A bare exception class is callable, so it would otherwise be mistaken for a
+    # predicate — and `bool(SomeError(exc))` is truthy, silently retrying everything.
+    if isinstance(retry_on, type) and issubclass(retry_on, BaseException):
+        retry_on = (retry_on,)
+    if isinstance(retry_on, tuple):
+        return isinstance(exc, retry_on)
+    return bool(retry_on(exc))
 
 
 def call_with_backoff(

@@ -100,3 +100,30 @@ def test_retry_on_tuple_of_types(monkeypatch):
         return "ok"
 
     assert call_with_backoff(flaky, attempts=3, base_delay=0.0, retry_on=(KeyError,)) == "ok"
+
+
+def test_retry_on_bare_exception_class_is_treated_as_a_type(monkeypatch):
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise KeyError("transient")
+        return "ok"
+
+    assert call_with_backoff(flaky, attempts=3, base_delay=0.0, retry_on=KeyError) == "ok"
+    assert calls["n"] == 2
+
+
+def test_bare_exception_class_does_not_retry_other_types(monkeypatch):
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def broken():
+        calls["n"] += 1
+        raise RuntimeError("not a KeyError")
+
+    with pytest.raises(RuntimeError):
+        call_with_backoff(broken, attempts=3, base_delay=0.0, retry_on=KeyError)
+    assert calls["n"] == 1, "must not retry an exception the class does not cover"
