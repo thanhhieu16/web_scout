@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <title>WebScout Chat</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <h1>WebScout</h1>
+      <label for="model-select">Model</label>
+      <select id="model-select"></select>
+      <label for="max-iterations">Max iterations</label>
+      <input id="max-iterations" type="number" min="1" max="10" value="3" />
+      <div id="key-banner" class="banner hidden">
+        OPENROUTER_API_KEY chưa được cấu hình. Xem README để thiết lập .env.
+      </div>
+    </aside>
+    <main id="chat">
+      <div id="log"></div>
+      <form id="composer">
+        <textarea
+          id="question"
+          rows="2"
+          placeholder="Hỏi gì đó... (Enter để gửi, Shift+Enter xuống dòng)"
+        ></textarea>
+        <button id="send" type="submit">Gửi</button>
+      </form>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

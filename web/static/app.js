@@ -1,0 +1,182 @@
+const logEl = document.getElementById("log");
+const formEl = document.getElementById("composer");
+const questionEl = document.getElementById("question");
+const sendEl = document.getElementById("send");
+const modelSelectEl = document.getElementById("model-select");
+const maxIterEl = document.getElementById("max-iterations");
+const bannerEl = document.getElementById("key-banner");
+
+let turns = []; // {question, out}
+
+const STATUS_LABELS = {
+  research: "Đang research...",
+  verify: "Đang verify...",
+  answer: "Đang trả lời...",
+};
+
+function addBubble(role, text, extraClass) {
+  const div = document.createElement("div");
+  div.className = `bubble ${role}${extraClass ? " " + extraClass : ""}`;
+  div.textContent = text;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+  return div;
+}
+
+function renderResult(bubble, question, out) {
+  bubble.textContent = out.answer || "";
+  bubble.classList.remove("error");
+
+  if (out.sources && out.sources.length) {
+    const sources = document.createElement("div");
+    sources.className = "sources";
+    sources.innerHTML =
+      "<strong>Sources</strong><br>" +
+      out.sources
+        .map(
+          (s, i) =>
+            `[${i + 1}] <a href="${s.url}" target="_blank" rel="noopener">${s.title || s.url}</a>`
+        )
+        .join("<br>");
+    bubble.appendChild(sources);
+  }
+
+  if (out.findings && out.findings.length) {
+    const findings = document.createElement("div");
+    findings.className = "findings";
+    findings.innerHTML =
+      "<strong>Findings</strong><br>" +
+      out.findings.map((f) => `(${f.confidence || "?"}) ${f.claim || ""}`).join("<br>");
+    bubble.appendChild(findings);
+  }
+
+  const metrics = document.createElement("div");
+  metrics.className = "metrics";
+  metrics.textContent =
+    `iterations: ${out.iteration ?? 0} | searches: ${out.search_calls ?? 0} | ` +
+    `sources: ${(out.sources || []).length} | tokens: ${out.total_tokens ?? 0} | ` +
+    `est_cost: $${(out.total_cost ?? 0).toFixed(4)}`;
+  bubble.appendChild(metrics);
+
+  const download = document.createElement("button");
+  download.type = "button";
+  download.className = "download";
+  download.textContent = "Tải report.md";
+  download.addEventListener("click", () => downloadReport(question, out));
+  bubble.appendChild(download);
+}
+
+async function downloadReport(question, out) {
+  const resp = await fetch("/api/report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, out }),
+  });
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "report.md";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function parseSseFrame(frame) {
+  const lines = frame.split("\n");
+  let event = "message";
+  let data = "";
+  for (const line of lines) {
+    if (line.startsWith("event: ")) event = line.slice(7);
+    if (line.startsWith("data: ")) data = line.slice(6);
+  }
+  return data ? { event, data: JSON.parse(data) } : null;
+}
+
+async function sendQuestion(question) {
+  addBubble("user", question);
+  const thinking = addBubble("assistant", STATUS_LABELS.research);
+
+  const history = turns.map((t) => ({ question: t.question, answer: t.out.answer }));
+  const body = {
+    question,
+    history,
+    model: modelSelectEl.value || null,
+    max_iterations: Number(maxIterEl.value) || null,
+  };
+
+  let resp;
+  try {
+    resp = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    thinking.textContent = `Lỗi kết nối: ${err.message}`;
+    thinking.classList.add("error");
+    return;
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop(); // keep the last, possibly incomplete frame
+    for (const frame of frames) {
+      const parsed = parseSseFrame(frame);
+      if (!parsed) continue;
+      const { event, data } = parsed;
+      if (event === "status") {
+        thinking.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
+      } else if (event === "result") {
+        renderResult(thinking, question, data);
+        turns.push({ question, out: data });
+      } else if (event === "error") {
+        thinking.textContent = `Lỗi: ${data.message}`;
+        thinking.classList.add("error");
+      }
+    }
+  }
+}
+
+formEl.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const question = questionEl.value.trim();
+  if (!question) return;
+  questionEl.value = "";
+  sendQuestion(question);
+});
+
+questionEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    formEl.requestSubmit();
+  }
+});
+
+async function loadModels() {
+  const resp = await fetch("/api/models");
+  const data = await resp.json();
+  modelSelectEl.innerHTML = "";
+  for (const choice of data.choices) {
+    const opt = document.createElement("option");
+    opt.value = choice;
+    opt.textContent = choice;
+    if (choice === data.current) opt.selected = true;
+    modelSelectEl.appendChild(opt);
+  }
+  if (!data.key_configured) {
+    bannerEl.classList.remove("hidden");
+    questionEl.disabled = true;
+    sendEl.disabled = true;
+  }
+}
+
+loadModels();

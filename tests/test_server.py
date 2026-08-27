@@ -152,3 +152,17 @@ def test_report_renders_markdown():
     assert resp.headers["content-type"].startswith("text/markdown")
     assert "# WebScout Report" in resp.text
     assert "A." in resp.text
+
+
+def test_index_page_served_at_root():
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "<title>WebScout Chat</title>" in resp.text
+
+
+def test_static_assets_served():
+    resp = client.get("/static/app.js")
+    assert resp.status_code == 200
+    resp = client.get("/static/style.css")
+    assert resp.status_code == 200

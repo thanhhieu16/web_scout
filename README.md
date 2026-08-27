@@ -116,6 +116,16 @@ roles *different* models, edit `config.yaml` instead.
 uv run webscout "What changed in the EU AI Act in 2026?" --out report.md
 ```
 
+**Browser chat UI** — conversation-aware follow-ups, live per-node status, model picker:
+
+```powershell
+uv sync --group web
+uv run uvicorn web.server:app --reload
+```
+
+Open `http://127.0.0.1:8000/`. This is a personal-testing tool: no login, no
+persistence across page reloads — conversation history lives in the browser tab only.
+
 ### What a run looks like
 
 ```text
