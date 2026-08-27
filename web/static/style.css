@@ -363,51 +363,77 @@ body {
 }
 
 .trace {
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.trace-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.trace-header-icon::before {
+  content: "◆";
+  font-size: 8px;
+}
+
+.trace-steps {
+  padding: 10px 12px 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 12px;
+  gap: 6px;
 }
 
 .trace-step {
   display: flex;
-  align-items: center;
   gap: 10px;
   position: relative;
-  padding: 3px 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.03em;
-  color: var(--text-dim);
+  padding: 2px 0;
 }
 
 .trace-step:not(:last-child)::before {
   content: "";
   position: absolute;
-  left: 4px;
-  top: 16px;
+  left: 7px;
+  top: 20px;
   width: 1px;
   height: calc(100% - 4px);
   background: var(--border);
 }
 
 .trace-badge {
-  width: 9px;
-  height: 9px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: var(--panel-2);
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
   border: 1px solid var(--text-dim);
+  font-size: 9px;
+  color: var(--panel);
   z-index: 1;
 }
 
 .trace-step.completed .trace-badge {
   background: var(--text-dim);
   border-color: var(--text-dim);
-}
-
-.trace-label {
-  text-transform: uppercase;
+  color: var(--panel-2);
 }
 
 .trace-step.active .trace-badge {
@@ -416,14 +442,34 @@ body {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.trace-step.active .trace-label {
-  color: var(--accent);
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .trace-step.active .trace-badge {
     animation: pulse 1.6s ease-in-out infinite;
   }
+}
+
+.trace-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.trace-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.trace-step.active .trace-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.trace-desc {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 @keyframes pulse {
@@ -455,8 +501,122 @@ body {
 .bubble .answer-text {
   font-family: var(--font-display);
   font-size: 16px;
+  line-height: 1.6;
   color: var(--text);
-  white-space: pre-wrap;
+  white-space: normal;
+}
+
+.answer-text > *:first-child {
+  margin-top: 0;
+}
+
+.answer-text > *:last-child {
+  margin-bottom: 0;
+}
+
+.answer-text p {
+  margin: 0 0 12px;
+}
+
+.answer-text h1,
+.answer-text h2,
+.answer-text h3,
+.answer-text h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 20px 0 8px;
+  color: var(--text);
+}
+
+.answer-text h1 {
+  font-size: 22px;
+}
+
+.answer-text h2 {
+  font-size: 19px;
+}
+
+.answer-text h3 {
+  font-size: 17px;
+}
+
+.answer-text h4 {
+  font-size: 16px;
+}
+
+.answer-text strong {
+  font-weight: 700;
+}
+
+.answer-text ul,
+.answer-text ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+
+.answer-text li {
+  margin-bottom: 4px;
+}
+
+.answer-text a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+.answer-text a:hover {
+  text-decoration: underline;
+}
+
+.answer-text code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.answer-text pre {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.answer-text pre code {
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.answer-text blockquote {
+  margin: 0 0 12px;
+  padding: 4px 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.answer-text table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 14px;
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.answer-text th,
+.answer-text td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.answer-text th {
+  background: var(--panel-2);
+  font-weight: 600;
 }
 
 .ledger-heading {

@@ -79,7 +79,7 @@ function renderResult(bubble, question, out) {
 
   const answerText = document.createElement("div");
   answerText.className = "answer-text";
-  answerText.textContent = out.answer || "";
+  answerText.innerHTML = DOMPurify.sanitize(marked.parse(out.answer || ""));
   bubble.appendChild(answerText);
 
   if (out.findings && out.findings.length) {
@@ -353,42 +353,85 @@ function startAssistantBubble() {
   return { bubble, trace, status };
 }
 
-function traceStepLabel(trace, node) {
+function traceStepMeta(trace, node) {
   if (node === "research") {
     trace.dataset.researchCount = String(Number(trace.dataset.researchCount || "0") + 1);
-    return `Research — vòng ${trace.dataset.researchCount}`;
+    return {
+      label: `Research — vòng ${trace.dataset.researchCount}`,
+      desc: "Tìm kiếm và thu thập nguồn từ web",
+    };
   }
   if (node === "verify") {
-    return `Verify — vòng ${trace.dataset.researchCount || "1"}`;
+    return {
+      label: `Verify — vòng ${trace.dataset.researchCount || "1"}`,
+      desc: "Kiểm chứng độ tin cậy các phát hiện",
+    };
   }
-  if (node === "answer") return "Answer";
-  return node;
+  if (node === "answer") {
+    return { label: "Answer", desc: "Tổng hợp câu trả lời cuối cùng" };
+  }
+  return { label: node, desc: "" };
+}
+
+function settleStep(step) {
+  if (!step) return;
+  step.classList.remove("active");
+  step.classList.add("completed");
+  const badge = step.querySelector(".trace-badge");
+  if (badge) badge.textContent = "✓";
+}
+
+function ensureTraceSteps(trace) {
+  let stepsEl = trace.querySelector(".trace-steps");
+  if (stepsEl) return stepsEl;
+
+  const header = document.createElement("div");
+  header.className = "trace-header";
+  const icon = document.createElement("span");
+  icon.className = "trace-header-icon";
+  header.appendChild(icon);
+  const title = document.createElement("span");
+  title.className = "trace-header-title";
+  title.textContent = "Nhật ký hoạt động";
+  header.appendChild(title);
+  trace.appendChild(header);
+
+  stepsEl = document.createElement("div");
+  stepsEl.className = "trace-steps";
+  trace.appendChild(stepsEl);
+  return stepsEl;
 }
 
 function addTraceStep(trace, node) {
-  const prevActive = trace.querySelector(".trace-step.active");
-  if (prevActive) {
-    prevActive.classList.remove("active");
-    prevActive.classList.add("completed");
-  }
+  settleStep(trace.querySelector(".trace-step.active"));
+
+  const stepsEl = ensureTraceSteps(trace);
+  const meta = traceStepMeta(trace, node);
+
   const step = document.createElement("div");
   step.className = "trace-step active";
+
   const badge = document.createElement("span");
   badge.className = "trace-badge";
   step.appendChild(badge);
+
+  const body = document.createElement("div");
+  body.className = "trace-step-body";
   const label = document.createElement("span");
   label.className = "trace-label";
-  label.textContent = traceStepLabel(trace, node);
-  step.appendChild(label);
-  trace.appendChild(step);
+  label.textContent = meta.label;
+  body.appendChild(label);
+  const desc = document.createElement("span");
+  desc.className = "trace-desc";
+  desc.textContent = meta.desc;
+  body.appendChild(desc);
+  step.appendChild(body);
+
+  stepsEl.appendChild(step);
 }
 
 function settleTrace(trace) {
-  const active = trace.querySelector(".trace-step.active");
-  if (active) {
-    active.classList.remove("active");
-    active.classList.add("completed");
-  }
+  settleStep(trace.querySelector(".trace-step.active"));
 }
 
 async function sendQuestion(question) {
