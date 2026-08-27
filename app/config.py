@@ -23,12 +23,29 @@ DEFAULT_MODEL = "z-ai/glm-5.3-flash"
 
 # Shortlist offered by `webscout --list-models`. Not a whitelist: --model takes
 # any OpenRouter slug, because a hard enum rots the day a model is retired.
+# The :free entries are a snapshot of https://openrouter.ai/api/v1/models
+# (2026-08-27) filtered to id.endswith(":free") — OpenRouter adds/retires free
+# models over time, so this list will drift; re-fetch and update it if a
+# --model call 404s the way stealth/ox-alpha did.
 MODEL_CHOICES = (
     DEFAULT_MODEL,
+    "dots-studio/dots-3-note-preview:free",
+    "liquid/lfm-2.5-2.6b:free",
+    "nvidia/nemotron-3.5-lightning:free",
+    "thinkingmachines/inkling-small:free",
+    "poolside/laguna-s-2.1:free",
+    "thinkingmachines/inkling:free",
+    "poolside/laguna-xs-2.1:free",
+    "cohere/north-mini-code:free",
+    "z-ai/glm-5.2:free",
+    "nvidia/nemotron-3.5-content-safety:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
     "minimax/minimax-m3:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "google/gemma-4-26b-a4b-it:free",
-    "minimax/minimax-m2.7:free",
     "google/gemma-4-31b-it:free",
+    "minimax/minimax-m2.7:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
 )
 
 
