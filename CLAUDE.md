@@ -85,6 +85,7 @@ The offline suite must stay network-free. Seams that make that possible:
 - `build_graph` looks up `build_research_agent` as a module attribute, so tests `monkeypatch.setattr(g, "build_research_agent", ...)`.
 - Anything needing a key or the live web must carry `@pytest.mark.integration`.
 - `tests/test_server.py` starts with `pytest.importorskip("fastapi")` so it skips cleanly when the `web` group isn't installed — the default `uv sync`/CI never sees it.
+- `web/server.py`'s `_db_path()` helper calls `store.init_db()` on every call (not once at import time), specifically so tests can redirect `CONVERSATIONS_DB_PATH` via `monkeypatch.setenv` + `get_settings.cache_clear()` before the first conversation route runs, instead of the real `data/webscout.db` being created as an import-time side effect.
 
 ## Docs
 

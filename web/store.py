@@ -64,7 +64,7 @@ def list_conversations(db_path: str) -> list[dict]:
     conn = _connect(db_path)
     try:
         rows = conn.execute(
-            "SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC"
+            "SELECT id, title, updated_at FROM conversations ORDER BY updated_at DESC, id DESC"
         ).fetchall()
         return [{"id": r[0], "title": r[1], "updated_at": r[2]} for r in rows]
     finally:

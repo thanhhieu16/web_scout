@@ -322,6 +322,7 @@ function settleTrace(trace) {
 }
 
 async function sendQuestion(question) {
+  const turnConversationId = activeConversationId;
   addBubble("user", question);
   const { bubble: thinking, trace, status } = startAssistantBubble();
 
@@ -344,9 +345,11 @@ async function sendQuestion(question) {
         body: JSON.stringify(body),
       });
     } catch (err) {
-      status.textContent = `Lỗi kết nối: ${err.message}`;
-      thinking.classList.remove("pending");
-      thinking.classList.add("error");
+      if (activeConversationId === turnConversationId) {
+        status.textContent = `Lỗi kết nối: ${err.message}`;
+        thinking.classList.remove("pending");
+        thinking.classList.add("error");
+      }
       return;
     }
 
@@ -357,9 +360,11 @@ async function sendQuestion(question) {
       } catch {
         // best-effort only; fall back to the status line below
       }
-      status.textContent = `Lỗi: ${resp.status} ${resp.statusText}${detail ? " — " + detail : ""}`;
-      thinking.classList.remove("pending");
-      thinking.classList.add("error");
+      if (activeConversationId === turnConversationId) {
+        status.textContent = `Lỗi: ${resp.status} ${resp.statusText}${detail ? " — " + detail : ""}`;
+        thinking.classList.remove("pending");
+        thinking.classList.add("error");
+      }
       return;
     }
 
@@ -379,36 +384,47 @@ async function sendQuestion(question) {
           const parsed = parseSseFrame(frame);
           if (!parsed) continue;
           const { event, data } = parsed;
+          const stale = activeConversationId !== turnConversationId;
           if (event === "status") {
-            addTraceChip(trace, data.node);
-            status.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
+            if (!stale) {
+              addTraceChip(trace, data.node);
+              status.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
+            }
           } else if (event === "result") {
-            settleTrace(trace);
-            renderResult(thinking, question, data);
+            if (!stale) {
+              settleTrace(trace);
+              renderResult(thinking, question, data);
+            }
             sawTerminalEvent = true;
           } else if (event === "error") {
-            settleTrace(trace);
-            status.textContent = `Lỗi: ${data.message}`;
-            thinking.classList.remove("pending");
-            thinking.classList.add("error");
+            if (!stale) {
+              settleTrace(trace);
+              status.textContent = `Lỗi: ${data.message}`;
+              thinking.classList.remove("pending");
+              thinking.classList.add("error");
+            }
             sawTerminalEvent = true;
           }
         }
       }
     } catch (err) {
-      settleTrace(trace);
-      status.textContent = `Lỗi: ${err.message}`;
-      thinking.classList.remove("pending");
-      thinking.classList.add("error");
+      if (activeConversationId === turnConversationId) {
+        settleTrace(trace);
+        status.textContent = `Lỗi: ${err.message}`;
+        thinking.classList.remove("pending");
+        thinking.classList.add("error");
+      }
       return;
     }
 
     if (!sawTerminalEvent) {
-      settleTrace(trace);
-      status.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
-      thinking.classList.remove("pending");
-      thinking.classList.add("error");
-    } else {
+      if (activeConversationId === turnConversationId) {
+        settleTrace(trace);
+        status.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
+        thinking.classList.remove("pending");
+        thinking.classList.add("error");
+      }
+    } else if (activeConversationId === turnConversationId) {
       await loadConversations();
     }
   } finally {

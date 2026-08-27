@@ -115,6 +115,7 @@ def test_chat_emits_error_event_on_failure(isolated_db, monkeypatch):
     events = _parse_sse(resp.text)
     assert events[-1][0] == "error"
     assert "boom" in events[-1][1]["message"]
+    assert store.get_conversation(isolated_db, conv_id)["messages"] == []
 
 
 def test_chat_passes_history_from_stored_messages(isolated_db, monkeypatch):

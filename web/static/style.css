@@ -10,6 +10,8 @@
   --conf-high: #5fb894;
   --conf-medium: #d9a83f;
   --conf-low: #c9564f;
+  --link: #a9c4e8;
+  --error-text: #f0a9a5;
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", monospace;
@@ -27,6 +29,8 @@
   --conf-high: #3f8f6c;
   --conf-medium: #a67a1f;
   --conf-low: #a83f38;
+  --link: #3a6ea8;
+  --error-text: #a83f38;
 }
 
 * {
@@ -228,7 +232,7 @@ body {
   border: 1px solid var(--conf-low);
   border-radius: 4px;
   font-size: 12px;
-  color: #f0a9a5;
+  color: var(--error-text);
   line-height: 1.4;
 }
 
@@ -349,7 +353,7 @@ body {
 
 .bubble.assistant.error {
   border-left-color: var(--conf-low);
-  color: #f0a9a5;
+  color: var(--error-text);
   font-family: var(--font-mono);
   font-size: 13px;
 }
@@ -458,7 +462,7 @@ body {
 }
 
 .source-item a {
-  color: #a9c4e8;
+  color: var(--link);
   text-decoration: none;
 }
 
