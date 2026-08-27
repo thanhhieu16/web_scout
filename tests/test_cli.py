@@ -205,6 +205,63 @@ def test_run_pipeline_prints_progress_and_answer(capsys):
     assert out["sufficient"] is True
 
 
+def test_stream_pipeline_yields_status_then_result():
+    from app.main import stream_pipeline
+
+    events = list(stream_pipeline("Q?", graph=FakeGraph(DELTAS)))
+    kinds = [kind for kind, _ in events]
+    assert kinds == ["status", "status", "status", "result"]
+    assert [payload for kind, payload in events[:3]] == ["research", "verify", "answer"]
+    result = events[-1][1]
+    assert result["answer"] == "Final [1]."
+    assert result["search_calls"] == 3
+    assert result["sufficient"] is True
+
+
+def test_render_report_markdown_matches_written_file(tmp_path, monkeypatch):
+    from datetime import datetime as real_datetime
+
+    import app.main as m
+
+    class _FrozenDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 8, 27, 12, 0, 0)
+
+    monkeypatch.setattr(m, "datetime", _FrozenDatetime)
+
+    out = {
+        "answer": "Body text [1].",
+        "sources": [{"url": "https://a.dev", "title": "A"}],
+        "findings": [{"claim": "c", "confidence": "high", "source_urls": ["https://a.dev"]}],
+        "sufficient": True,
+        "iteration": 2,
+        "search_calls": 3,
+        "total_tokens": 500,
+        "total_cost": 0.01,
+    }
+    path = tmp_path / "report.md"
+    m.write_report("Q?", out, str(path))
+    assert m.render_report_markdown("Q?", out) == path.read_text(encoding="utf-8")
+
+
+def test_run_pipeline_max_iterations_override():
+    from app.main import run_pipeline
+
+    class _CapturingGraph:
+        def __init__(self, inner):
+            self._inner = inner
+            self.seen_state = None
+
+        def stream(self, state, stream_mode="updates"):
+            self.seen_state = state
+            yield from self._inner.stream(state, stream_mode=stream_mode)
+
+    capturing = _CapturingGraph(FakeGraph(DELTAS))
+    run_pipeline("Q?", graph=capturing, max_iterations=1)
+    assert capturing.seen_state["max_iterations"] == 1
+
+
 def test_main_fast_fails_without_api_key(monkeypatch):
     def forbidden_input(prompt=""):
         raise AssertionError("input must not be called without an API key")

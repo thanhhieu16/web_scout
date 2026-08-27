@@ -51,29 +51,48 @@ def run_question(question: str, agent=None, settings=None, usage=None) -> dict:
     }
 
 
-def run_pipeline(question: str, graph=None) -> dict:
+def stream_pipeline(question: str, graph=None, max_iterations: int | None = None):
+    """Drive the LangGraph pipeline, yielding progress then the final result.
+
+    Yields ("status", node_name) once per completed node, in order, then yields
+    exactly one ("result", out_dict) as the last item.
+    """
     if graph is None:
         require_openrouter_key()
     g = graph or build_graph()
     s = get_settings()
-    state = {"question": question, "iteration": 0, "max_iterations": s.max_iterations}
+    mi = max_iterations if max_iterations is not None else s.max_iterations
+    state = {"question": question, "iteration": 0, "max_iterations": mi}
     final = dict(state)
     for mode, chunk in g.stream(state, stream_mode=["updates", "values"]):
         if mode == "updates":
             for node in chunk:
-                print(f"[{node}] ...", flush=True)
+                yield ("status", node)
         else:
             final = chunk
-    return {
-        "answer": final.get("answer", ""),
-        "sources": final.get("sources", []),
-        "findings": final.get("findings", []),
-        "search_calls": final.get("search_calls", 0),
-        "sufficient": final.get("sufficient", False),
-        "iteration": final.get("iteration", 0),
-        "total_tokens": final.get("total_tokens", 0),
-        "total_cost": round(final.get("total_cost", 0.0), 4),
-    }
+    yield (
+        "result",
+        {
+            "answer": final.get("answer", ""),
+            "sources": final.get("sources", []),
+            "findings": final.get("findings", []),
+            "search_calls": final.get("search_calls", 0),
+            "sufficient": final.get("sufficient", False),
+            "iteration": final.get("iteration", 0),
+            "total_tokens": final.get("total_tokens", 0),
+            "total_cost": round(final.get("total_cost", 0.0), 4),
+        },
+    )
+
+
+def run_pipeline(question: str, graph=None, max_iterations: int | None = None) -> dict:
+    out = None
+    for kind, payload in stream_pipeline(question, graph=graph, max_iterations=max_iterations):
+        if kind == "status":
+            print(f"[{payload}] ...", flush=True)
+        else:
+            out = payload
+    return out
 
 
 def _print_result(out: dict) -> None:
@@ -93,7 +112,7 @@ def _print_result(out: dict) -> None:
     )
 
 
-def write_report(question: str, out: dict, path: str) -> None:
+def render_report_markdown(question: str, out: dict) -> str:
     lines = [
         "# WebScout Report",
         "",
@@ -126,7 +145,11 @@ def write_report(question: str, out: dict, path: str) -> None:
         for i, s in enumerate(sources, 1):
             lines.append(f"{i}. [{s.get('title', '')}]({s.get('url', '')})")
         lines.append("")
-    Path(path).write_text("\n".join(lines), encoding="utf-8")
+    return "\n".join(lines)
+
+
+def write_report(question: str, out: dict, path: str) -> None:
+    Path(path).write_text(render_report_markdown(question, out), encoding="utf-8")
 
 
 def _print_models(current: str) -> None:
