@@ -3,16 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <title>WebScout Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <div id="app">
     <aside id="sidebar">
-      <h1>WebScout</h1>
-      <label for="model-select">Model</label>
-      <select id="model-select"></select>
-      <label for="max-iterations">Max iterations</label>
-      <input id="max-iterations" type="number" min="1" max="10" value="3" />
+      <div id="wordmark">
+        <span class="eyebrow">Case File</span>
+        <h1>WebScout</h1>
+      </div>
+      <div class="field">
+        <label for="model-select">Model</label>
+        <select id="model-select"></select>
+      </div>
+      <div class="field">
+        <label for="max-iterations">Max iterations</label>
+        <input id="max-iterations" type="number" min="1" max="10" value="3" />
+      </div>
       <div id="key-banner" class="banner hidden">
         OPENROUTER_API_KEY chưa được cấu hình. Xem README để thiết lập .env.
       </div>

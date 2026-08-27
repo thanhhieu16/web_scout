@@ -8,6 +8,7 @@ const bannerEl = document.getElementById("key-banner");
 
 let turns = []; // {question, out}
 let currentModel = null;
+let turnCounter = 0;
 
 const STATUS_LABELS = {
   research: "Đang research...",
@@ -34,40 +35,87 @@ function addBubble(role, text, extraClass) {
 }
 
 function renderResult(bubble, question, out) {
-  bubble.textContent = out.answer || "";
-  bubble.classList.remove("error");
+  bubble.textContent = "";
+  bubble.classList.remove("error", "pending");
 
-  if (out.sources && out.sources.length) {
-    const sources = document.createElement("div");
-    sources.className = "sources";
-    const heading = document.createElement("strong");
-    heading.textContent = "Sources";
-    sources.appendChild(heading);
-    out.sources.forEach((s, i) => {
-      sources.appendChild(document.createElement("br"));
-      const link = document.createElement("a");
-      link.href = safeHref(s.url);
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.textContent = `[${i + 1}] ${s.title || s.url}`;
-      sources.appendChild(link);
-    });
-    bubble.appendChild(sources);
-  }
+  const turnId = `t${turnCounter++}`;
+  const sources = out.sources || [];
+  const sourceIndexByUrl = new Map(sources.map((s, i) => [s.url, i]));
+
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "eyebrow";
+  eyebrow.textContent = "Finding Report";
+  bubble.appendChild(eyebrow);
+
+  const answerText = document.createElement("div");
+  answerText.className = "answer-text";
+  answerText.textContent = out.answer || "";
+  bubble.appendChild(answerText);
 
   if (out.findings && out.findings.length) {
     const findings = document.createElement("div");
     findings.className = "findings";
-    const heading = document.createElement("strong");
+    const heading = document.createElement("div");
+    heading.className = "ledger-heading";
     heading.textContent = "Findings";
     findings.appendChild(heading);
     out.findings.forEach((f) => {
-      findings.appendChild(document.createElement("br"));
-      const line = document.createElement("span");
-      line.textContent = `(${f.confidence || "?"}) ${f.claim || ""}`;
-      findings.appendChild(line);
+      const conf = (f.confidence || "unknown").toLowerCase();
+      const row = document.createElement("div");
+      row.className = `finding-row confidence-${conf}`;
+      const dot = document.createElement("span");
+      dot.className = "confidence-dot";
+      row.appendChild(dot);
+      const claim = document.createElement("span");
+      claim.className = "finding-claim";
+      claim.textContent = f.claim || "";
+      row.appendChild(claim);
+      (f.source_urls || []).forEach((url) => {
+        const idx = sourceIndexByUrl.get(url);
+        if (idx === undefined) return;
+        const tab = document.createElement("a");
+        tab.className = "citation-tab";
+        tab.href = `#${turnId}-source-${idx}`;
+        tab.textContent = `S${idx + 1}`;
+        tab.addEventListener("click", (e) => {
+          e.preventDefault();
+          const target = document.getElementById(`${turnId}-source-${idx}`);
+          if (!target) return;
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          target.classList.add("flash");
+          setTimeout(() => target.classList.remove("flash"), 900);
+        });
+        row.appendChild(tab);
+      });
+      findings.appendChild(row);
     });
     bubble.appendChild(findings);
+  }
+
+  if (sources.length) {
+    const sourcesEl = document.createElement("div");
+    sourcesEl.className = "sources";
+    const heading = document.createElement("div");
+    heading.className = "ledger-heading";
+    heading.textContent = "Sources";
+    sourcesEl.appendChild(heading);
+    sources.forEach((s, i) => {
+      const item = document.createElement("div");
+      item.className = "source-item";
+      item.id = `${turnId}-source-${i}`;
+      const num = document.createElement("span");
+      num.className = "source-num";
+      num.textContent = `S${i + 1}`;
+      item.appendChild(num);
+      const link = document.createElement("a");
+      link.href = safeHref(s.url);
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = s.title || s.url;
+      item.appendChild(link);
+      sourcesEl.appendChild(item);
+    });
+    bubble.appendChild(sourcesEl);
   }
 
   const metrics = document.createElement("div");
@@ -116,7 +164,7 @@ function parseSseFrame(frame) {
 
 async function sendQuestion(question) {
   addBubble("user", question);
-  const thinking = addBubble("assistant", STATUS_LABELS.research);
+  const thinking = addBubble("assistant", STATUS_LABELS.research, "pending");
 
   const history = turns.map((t) => ({ question: t.question, answer: t.out.answer }));
   const body = {
@@ -139,6 +187,7 @@ async function sendQuestion(question) {
       });
     } catch (err) {
       thinking.textContent = `Lỗi kết nối: ${err.message}`;
+      thinking.classList.remove("pending");
       thinking.classList.add("error");
       return;
     }
@@ -151,6 +200,7 @@ async function sendQuestion(question) {
         // best-effort only; fall back to the status line below
       }
       thinking.textContent = `Lỗi: ${resp.status} ${resp.statusText}${detail ? " — " + detail : ""}`;
+      thinking.classList.remove("pending");
       thinking.classList.add("error");
       return;
     }
@@ -179,6 +229,7 @@ async function sendQuestion(question) {
             sawTerminalEvent = true;
           } else if (event === "error") {
             thinking.textContent = `Lỗi: ${data.message}`;
+            thinking.classList.remove("pending");
             thinking.classList.add("error");
             sawTerminalEvent = true;
           }
@@ -186,12 +237,14 @@ async function sendQuestion(question) {
       }
     } catch (err) {
       thinking.textContent = `Lỗi: ${err.message}`;
+      thinking.classList.remove("pending");
       thinking.classList.add("error");
       return;
     }
 
     if (!sawTerminalEvent) {
       thinking.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
+      thinking.classList.remove("pending");
       thinking.classList.add("error");
     }
   } finally {
