@@ -17,10 +17,12 @@ dependencies = [
 [project.scripts]
 webscout = "app.main:main"
 webscout-web = "web.server:main"
+webscout-acp = "app.acp_server:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.9"]
 web = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
+acp = ["agent-client-protocol>=0.12"]
 
 [build-system]
 requires = ["hatchling"]

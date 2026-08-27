@@ -126,6 +126,20 @@ uv run uvicorn web.server:app --reload
 Open `http://127.0.0.1:8000/`. This is a personal-testing tool: no login, no
 persistence across page reloads — conversation history lives in the browser tab only.
 
+**Zed editor (ACP)** — drive WebScout as an agent inside [Zed](https://zed.dev/), with
+per-node progress shown as a plan panel:
+
+```powershell
+uv sync --group acp
+```
+
+Then point Zed's agent-server config at the installed `webscout-acp` executable (its
+path depends on your venv — usually `.venv/Scripts/webscout-acp.exe` on Windows). See
+Zed's own [ACP documentation](https://agentclientprotocol.com/) for the exact
+`settings.json` shape. Each Zed session starts a fresh conversation in the same
+`data/webscout.db` used by the browser chat UI — no session resume yet, and no
+per-session model override (both use `config.yaml`'s configured models).
+
 ### What a run looks like
 
 ```text
@@ -222,6 +236,8 @@ variables override YAML where defined (`OPENROUTER_API_KEY`, also accepted as
 ```text
 app/
   main.py        CLI: run_pipeline (graph), run_question (agent only), markdown report
+  turn.py        run_chat_turn: shared chat-turn logic (web UI + ACP agent)
+  acp_server.py  ACP agent (Zed integration) over stdio — `webscout-acp` console script
   graph.py       LangGraph product loop (research -> verify -> answer)
   state.py       ResearchState TypedDict (counters accumulated via LangGraph reducers)
   agent.py       Deep Agents research harness
