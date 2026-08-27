@@ -56,6 +56,12 @@ def _fake_turn(status_nodes, result):
     return gen
 
 
+def test_module_import_disables_langsmith_tracing():
+    import os
+
+    assert os.environ.get("LANGSMITH_TRACING") == "false"
+
+
 def test_new_session_creates_a_conversation_row(isolated_db):
     agent = acp_server.WebScoutAcpAgent()
     resp = asyncio.run(agent.new_session(cwd="."))

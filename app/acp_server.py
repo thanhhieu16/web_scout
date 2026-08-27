@@ -1,6 +1,18 @@
-import asyncio
+import os
 
-from acp import (
+# LangSmith tracing deadlocks this process: confirmed by direct repro that a
+# real research turn hangs forever (0% CPU, no network) specifically when this
+# process's stdio is a real OS pipe with no console attached — exactly ACP's
+# stdio transport, and exactly how Zed launches this agent. The CLI and web UI
+# don't hit this because they run with a normal console/server stdio. Must be
+# set before `app.turn`/`app.config` (and the langchain/langsmith imports they
+# pull in) are imported below, in case the deadlock trigger is import-time
+# rather than per-call.
+os.environ["LANGSMITH_TRACING"] = "false"
+
+import asyncio  # noqa: E402
+
+from acp import (  # noqa: E402
     PROTOCOL_VERSION,
     InitializeResponse,
     NewSessionResponse,
@@ -11,10 +23,10 @@ from acp import (
     update_plan,
 )
 
-from app.config import get_settings
-from app.main import require_openrouter_key
-from app.turn import run_chat_turn
-from web import store
+from app.config import get_settings  # noqa: E402
+from app.main import require_openrouter_key  # noqa: E402
+from app.turn import run_chat_turn  # noqa: E402
+from web import store  # noqa: E402
 
 _STAGE_LABELS = {"research": "Research", "verify": "Verify", "answer": "Answer"}
 
