@@ -398,8 +398,8 @@ async function loadModels() {
 }
 
 async function init() {
-  await loadModels();
   try {
+    await loadModels();
     await loadConversations();
     if (conversations.length) {
       await selectConversation(conversations[0].id);
