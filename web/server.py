@@ -7,9 +7,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.config import MODEL_CHOICES, get_settings, override_model
-from app.conversation import condense_question
-from app.graph import build_graph
-from app.main import render_report_markdown, stream_pipeline
+from app.main import render_report_markdown
+from app.turn import run_chat_turn
 from web import store
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -121,20 +120,15 @@ def chat(body: ChatRequest):
 
     def gen():
         try:
-            history = [
-                {"question": m["question"], "answer": m["out"].get("answer", "")}
-                for m in conversation["messages"]
-            ]
-            question = condense_question(history, body.question)
-            graph = build_graph()
-            for kind, payload in stream_pipeline(
-                question, graph=graph, max_iterations=body.max_iterations
+            for kind, payload in run_chat_turn(
+                db_path, body.conversation_id, body.question, body.max_iterations
             ):
                 if kind == "status":
-                    yield _sse("status", {"node": payload})
-                else:
-                    store.append_message(db_path, body.conversation_id, body.question, payload)
+                    yield _sse("status", {"node": payload["node"]})
+                elif kind == "result":
                     yield _sse("result", payload)
+                else:
+                    yield _sse("error", payload)
         except Exception as exc:
             yield _sse("error", {"message": str(exc)})
 

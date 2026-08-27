@@ -4,6 +4,7 @@ pytest.importorskip("fastapi")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import app.turn as turn  # noqa: E402
 import web.server as server  # noqa: E402
 from web import store  # noqa: E402
 
@@ -95,8 +96,8 @@ def test_list_models_reports_shortlist_and_key_state(monkeypatch):
 
 def test_chat_streams_status_then_result(isolated_db, monkeypatch):
     conv_id = store.create_conversation(isolated_db)
-    monkeypatch.setattr(server, "build_graph", lambda: _LinearFakeGraph())
-    monkeypatch.setattr(server, "condense_question", lambda history, question, **k: question)
+    monkeypatch.setattr(turn, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
     resp = client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
     assert resp.status_code == 200
     events = _parse_sse(resp.text)
@@ -108,8 +109,8 @@ def test_chat_streams_status_then_result(isolated_db, monkeypatch):
 
 def test_chat_emits_error_event_on_failure(isolated_db, monkeypatch):
     conv_id = store.create_conversation(isolated_db)
-    monkeypatch.setattr(server, "build_graph", lambda: _RaisingGraph())
-    monkeypatch.setattr(server, "condense_question", lambda history, question, **k: question)
+    monkeypatch.setattr(turn, "build_graph", lambda: _RaisingGraph())
+    monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
     resp = client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
     assert resp.status_code == 200
     events = _parse_sse(resp.text)
@@ -136,8 +137,8 @@ def test_chat_passes_history_from_stored_messages(isolated_db, monkeypatch):
             captured_state["state"] = state
             yield from super().stream(state, stream_mode=stream_mode)
 
-    monkeypatch.setattr(server, "build_graph", lambda: _CapturingGraph())
-    monkeypatch.setattr(server, "condense_question", fake_condense)
+    monkeypatch.setattr(turn, "build_graph", lambda: _CapturingGraph())
+    monkeypatch.setattr(turn, "condense_question", fake_condense)
     client.post("/api/chat", json={"conversation_id": conv_id, "question": "and that?"})
     assert seen["history"] == [{"question": "What is LangGraph?", "answer": "A framework."}]
     assert seen["question"] == "and that?"
@@ -151,8 +152,8 @@ def test_chat_returns_404_for_missing_conversation(isolated_db):
 
 def test_chat_persists_message_after_result(isolated_db, monkeypatch):
     conv_id = store.create_conversation(isolated_db)
-    monkeypatch.setattr(server, "build_graph", lambda: _LinearFakeGraph())
-    monkeypatch.setattr(server, "condense_question", lambda history, question, **k: question)
+    monkeypatch.setattr(turn, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
     client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
     conv = store.get_conversation(isolated_db, conv_id)
     assert len(conv["messages"]) == 1
