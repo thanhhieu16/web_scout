@@ -14,6 +14,15 @@ const STATUS_LABELS = {
   answer: "Đang trả lời...",
 };
 
+function safeHref(url) {
+  try {
+    const parsed = new URL(url, window.location.href);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : "#";
+  } catch {
+    return "#";
+  }
+}
+
 function addBubble(role, text, extraClass) {
   const div = document.createElement("div");
   div.className = `bubble ${role}${extraClass ? " " + extraClass : ""}`;
@@ -30,23 +39,33 @@ function renderResult(bubble, question, out) {
   if (out.sources && out.sources.length) {
     const sources = document.createElement("div");
     sources.className = "sources";
-    sources.innerHTML =
-      "<strong>Sources</strong><br>" +
-      out.sources
-        .map(
-          (s, i) =>
-            `[${i + 1}] <a href="${s.url}" target="_blank" rel="noopener">${s.title || s.url}</a>`
-        )
-        .join("<br>");
+    const heading = document.createElement("strong");
+    heading.textContent = "Sources";
+    sources.appendChild(heading);
+    out.sources.forEach((s, i) => {
+      sources.appendChild(document.createElement("br"));
+      const link = document.createElement("a");
+      link.href = safeHref(s.url);
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = `[${i + 1}] ${s.title || s.url}`;
+      sources.appendChild(link);
+    });
     bubble.appendChild(sources);
   }
 
   if (out.findings && out.findings.length) {
     const findings = document.createElement("div");
     findings.className = "findings";
-    findings.innerHTML =
-      "<strong>Findings</strong><br>" +
-      out.findings.map((f) => `(${f.confidence || "?"}) ${f.claim || ""}`).join("<br>");
+    const heading = document.createElement("strong");
+    heading.textContent = "Findings";
+    findings.appendChild(heading);
+    out.findings.forEach((f) => {
+      findings.appendChild(document.createElement("br"));
+      const line = document.createElement("span");
+      line.textContent = `(${f.confidence || "?"}) ${f.claim || ""}`;
+      findings.appendChild(line);
+    });
     bubble.appendChild(findings);
   }
 
