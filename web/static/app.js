@@ -7,6 +7,7 @@ const maxIterEl = document.getElementById("max-iterations");
 const bannerEl = document.getElementById("key-banner");
 const newConversationEl = document.getElementById("new-conversation");
 const conversationListEl = document.getElementById("conversation-list");
+const themeToggleEl = document.getElementById("theme-toggle");
 
 let currentModel = null;
 let turnCounter = 0;
@@ -27,6 +28,28 @@ function safeHref(url) {
     return "#";
   }
 }
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  themeToggleEl.textContent = theme === "light" ? "☀" : "☾";
+}
+
+function initTheme() {
+  const stored = localStorage.getItem("webscout-theme");
+  if (stored === "light" || stored === "dark") {
+    applyTheme(stored);
+    return;
+  }
+  const prefersLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+  applyTheme(prefersLight ? "light" : "dark");
+}
+
+themeToggleEl.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = current === "light" ? "dark" : "light";
+  localStorage.setItem("webscout-theme", next);
+  applyTheme(next);
+});
 
 function addBubble(role, text, extraClass) {
   const div = document.createElement("div");
@@ -414,4 +437,5 @@ async function init() {
   }
 }
 
+initTheme();
 init();

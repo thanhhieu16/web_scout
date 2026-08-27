@@ -15,6 +15,20 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", monospace;
 }
 
+:root[data-theme="light"] {
+  --bg: #f3efe6;
+  --panel: #ffffff;
+  --panel-2: #faf7f0;
+  --border: #ddd5c4;
+  --text: #1c1a16;
+  --text-dim: #6b6559;
+  --accent: #9c5f1f;
+  --accent-soft: rgba(156, 95, 31, 0.12);
+  --conf-high: #3f8f6c;
+  --conf-medium: #a67a1f;
+  --conf-low: #a83f38;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -81,6 +95,22 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+}
+
+#theme-toggle {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+#theme-toggle:hover {
+  border-color: var(--accent);
 }
 
 #new-conversation {
