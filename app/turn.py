@@ -1,3 +1,4 @@
+import sys
 from collections.abc import Iterator
 
 from app.conversation import condense_question
@@ -40,7 +41,10 @@ def run_chat_turn(
             if kind == "status":
                 yield ("status", {"node": payload})
             else:
-                store.append_message(db_path, conversation_id, question, payload)
+                try:
+                    store.append_message(db_path, conversation_id, question, payload)
+                except Exception as persist_exc:
+                    print(f"[warn] failed to persist turn: {persist_exc}", file=sys.stderr)
                 yield ("result", payload)
     except Exception as exc:
         yield ("error", {"message": str(exc)})

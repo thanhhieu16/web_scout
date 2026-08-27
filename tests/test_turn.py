@@ -95,3 +95,18 @@ def test_run_chat_turn_condenses_using_stored_history(db_path, monkeypatch):
 def test_run_chat_turn_raises_keyerror_for_missing_conversation(db_path):
     with pytest.raises(KeyError):
         list(turn.run_chat_turn(db_path, 999, "Q?"))
+
+
+def test_run_chat_turn_still_yields_result_when_persist_fails(db_path, monkeypatch, capsys):
+    conv_id = store.create_conversation(db_path)
+    monkeypatch.setattr(turn, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
+    monkeypatch.setattr(
+        turn.store, "append_message", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("locked"))
+    )
+
+    events = list(turn.run_chat_turn(db_path, conv_id, "Q?"))
+
+    assert events[-1][0] == "result"
+    assert events[-1][1]["answer"] == "Final [1]."
+    assert "failed to persist" in capsys.readouterr().err

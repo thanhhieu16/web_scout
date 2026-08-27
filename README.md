@@ -124,14 +124,19 @@ uv run uvicorn web.server:app --reload
 ```
 
 Open `http://127.0.0.1:8000/`. This is a personal-testing tool: no login, no
-persistence across page reloads — conversation history lives in the browser tab only.
+multi-user auth — conversation history persists server-side in `data/webscout.db`
+(see the "Zed editor" note below for how the ACP agent shares the same file).
 
 **Zed editor (ACP)** — drive WebScout as an agent inside [Zed](https://zed.dev/), with
 per-node progress shown as a plan panel:
 
 ```powershell
-uv sync --group acp
+uv sync --group web --group acp
 ```
+
+> `uv sync --group X` installs exactly that group's extras — pass every group you want in one
+> call (`--group web --group acp`) if you use both the browser UI and Zed, since a later
+> `uv sync --group acp` alone would uninstall `fastapi`/`uvicorn`.
 
 Then point Zed's agent-server config at the installed `webscout-acp` executable (its
 path depends on your venv — usually `.venv/Scripts/webscout-acp.exe` on Windows). See

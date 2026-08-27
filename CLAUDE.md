@@ -11,6 +11,7 @@ uv run webscout "question"                     # one-shot run (full graph)
 uv run webscout                                # interactive REPL
 uv run webscout "q" --out report.md            # + markdown report
 uv sync --group web && uv run uvicorn web.server:app --reload   # browser chat UI (see web/server.py)
+uv sync --group acp                            # ACP agent for Zed (see app/acp_server.py) — combine with --group web if you want both
 
 uv run pytest -m "not integration"             # offline suite (what CI runs)
 uv run pytest -m integration                   # hits OpenRouter + live web
