@@ -75,3 +75,12 @@ def test_model_choices_are_unique_and_nonempty():
     assert len(set(MODEL_CHOICES)) == len(MODEL_CHOICES)
     assert MODEL_CHOICES[0] == DEFAULT_MODEL
     assert all(slug.count("/") == 1 for slug in MODEL_CHOICES)
+
+
+def test_conversations_db_path_defaults_under_repo_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("CONVERSATIONS_DB_PATH", raising=False)
+    from app.config import REPO_ROOT
+
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert s.conversations_db_path == str(REPO_ROOT / "data" / "webscout.db")

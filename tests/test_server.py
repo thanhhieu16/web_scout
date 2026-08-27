@@ -5,6 +5,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
 import web.server as server  # noqa: E402
+from web import store  # noqa: E402
 
 
 class _LinearFakeGraph:
@@ -65,6 +66,18 @@ def _parse_sse(text: str) -> list[tuple[str, dict]]:
 client = TestClient(server.app)
 
 
+@pytest.fixture
+def isolated_db(tmp_path, monkeypatch):
+    from app.config import get_settings
+
+    db_path = str(tmp_path / "test.db")
+    monkeypatch.setenv("CONVERSATIONS_DB_PATH", db_path)
+    get_settings.cache_clear()
+    store.init_db(db_path)
+    yield db_path
+    get_settings.cache_clear()
+
+
 def test_list_models_reports_shortlist_and_key_state(monkeypatch):
     from app.config import MODEL_CHOICES, get_settings
 
@@ -80,10 +93,11 @@ def test_list_models_reports_shortlist_and_key_state(monkeypatch):
         get_settings.cache_clear()
 
 
-def test_chat_streams_status_then_result(monkeypatch):
+def test_chat_streams_status_then_result(isolated_db, monkeypatch):
+    conv_id = store.create_conversation(isolated_db)
     monkeypatch.setattr(server, "build_graph", lambda: _LinearFakeGraph())
     monkeypatch.setattr(server, "condense_question", lambda history, question, **k: question)
-    resp = client.post("/api/chat", json={"question": "Q?", "history": []})
+    resp = client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
     assert resp.status_code == 200
     events = _parse_sse(resp.text)
     kinds = [e for e, _ in events]
@@ -92,17 +106,21 @@ def test_chat_streams_status_then_result(monkeypatch):
     assert events[-1][1]["answer"] == "Final [1]."
 
 
-def test_chat_emits_error_event_on_failure(monkeypatch):
+def test_chat_emits_error_event_on_failure(isolated_db, monkeypatch):
+    conv_id = store.create_conversation(isolated_db)
     monkeypatch.setattr(server, "build_graph", lambda: _RaisingGraph())
     monkeypatch.setattr(server, "condense_question", lambda history, question, **k: question)
-    resp = client.post("/api/chat", json={"question": "Q?", "history": []})
+    resp = client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
     assert resp.status_code == 200
     events = _parse_sse(resp.text)
     assert events[-1][0] == "error"
     assert "boom" in events[-1][1]["message"]
 
 
-def test_chat_passes_condensed_question_and_history(monkeypatch):
+def test_chat_passes_history_from_stored_messages(isolated_db, monkeypatch):
+    conv_id = store.create_conversation(isolated_db)
+    store.append_message(isolated_db, conv_id, "What is LangGraph?", {"answer": "A framework."})
+
     seen = {}
 
     def fake_condense(history, question, **kwargs):
@@ -119,16 +137,76 @@ def test_chat_passes_condensed_question_and_history(monkeypatch):
 
     monkeypatch.setattr(server, "build_graph", lambda: _CapturingGraph())
     monkeypatch.setattr(server, "condense_question", fake_condense)
-    client.post(
-        "/api/chat",
-        json={
-            "question": "and that?",
-            "history": [{"question": "What is LangGraph?", "answer": "A framework."}],
-        },
-    )
+    client.post("/api/chat", json={"conversation_id": conv_id, "question": "and that?"})
     assert seen["history"] == [{"question": "What is LangGraph?", "answer": "A framework."}]
     assert seen["question"] == "and that?"
     assert captured_state["state"]["question"] == "standalone question"
+
+
+def test_chat_returns_404_for_missing_conversation(isolated_db):
+    resp = client.post("/api/chat", json={"conversation_id": 999, "question": "Q?"})
+    assert resp.status_code == 404
+
+
+def test_chat_persists_message_after_result(isolated_db, monkeypatch):
+    conv_id = store.create_conversation(isolated_db)
+    monkeypatch.setattr(server, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(server, "condense_question", lambda history, question, **k: question)
+    client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
+    conv = store.get_conversation(isolated_db, conv_id)
+    assert len(conv["messages"]) == 1
+    assert conv["messages"][0]["question"] == "Q?"
+    assert conv["messages"][0]["out"]["answer"] == "Final [1]."
+
+
+def test_create_conversation_returns_default_title(isolated_db):
+    resp = client.post("/api/conversations")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["title"] == store.DEFAULT_TITLE
+    assert isinstance(body["id"], int)
+
+
+def test_list_conversations_empty_initially(isolated_db):
+    resp = client.get("/api/conversations")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_get_conversation_returns_404_for_missing_id(isolated_db):
+    resp = client.get("/api/conversations/999")
+    assert resp.status_code == 404
+
+
+def test_rename_conversation(isolated_db):
+    conv_id = store.create_conversation(isolated_db)
+    resp = client.patch(f"/api/conversations/{conv_id}", json={"title": "  New title  "})
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "New title"
+    assert store.list_conversations(isolated_db)[0]["title"] == "New title"
+
+
+def test_rename_conversation_rejects_empty_title(isolated_db):
+    conv_id = store.create_conversation(isolated_db)
+    resp = client.patch(f"/api/conversations/{conv_id}", json={"title": "   "})
+    assert resp.status_code == 400
+
+
+def test_rename_conversation_404_for_missing_id(isolated_db):
+    resp = client.patch("/api/conversations/999", json={"title": "x"})
+    assert resp.status_code == 404
+
+
+def test_delete_conversation(isolated_db):
+    conv_id = store.create_conversation(isolated_db)
+    resp = client.delete(f"/api/conversations/{conv_id}")
+    assert resp.status_code == 204
+    assert store.list_conversations(isolated_db) == []
+
+
+def test_delete_conversation_404_for_missing_id(isolated_db):
+    resp = client.delete("/api/conversations/999")
+    assert resp.status_code == 404
 
 
 def test_report_renders_markdown():

@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     skills_enabled: bool = False
     search: SearchConfig = SearchConfig()
     fetch: FetchConfig = FetchConfig()
+    conversations_db_path: str = Field(
+        default_factory=lambda: str(REPO_ROOT / "data" / "webscout.db")
+    )
 
     @classmethod
     def settings_customise_sources(
