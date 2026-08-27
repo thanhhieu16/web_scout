@@ -1,9 +1,9 @@
 from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
-from app.config import RoleConfig, Settings, get_settings
+from app.config import ROLE_NAMES, RoleConfig, Settings, get_settings
 
-ROLES = ("researcher", "verifier", "answer", "judge")
+ROLES = ROLE_NAMES
 
 
 class ResearchChatOpenAI(ChatOpenAI):

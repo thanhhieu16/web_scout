@@ -343,3 +343,71 @@ def test_run_pipeline_returns_usage_fields():
     out = run_pipeline("Q?", graph=FakeGraph())
     assert out["total_tokens"] == 500
     assert abs(out["total_cost"] - 0.01) < 1e-9
+
+
+def test_list_models_prints_shortlist_and_skips_pipeline(monkeypatch, capsys):
+    from app.config import MODEL_CHOICES
+
+    def forbidden(*a, **k):
+        raise AssertionError("--list-models must not run the pipeline")
+
+    monkeypatch.setattr(app.main, "run_pipeline", forbidden)
+    main(["--list-models"])
+    out = capsys.readouterr().out
+    for slug in MODEL_CHOICES:
+        assert slug in out
+
+
+def test_model_flag_overrides_every_role(monkeypatch, capsys):
+    from app.config import ROLE_NAMES, get_settings
+
+    seen = {}
+
+    def fake_pipeline(question, graph=None):
+        seen["model"] = get_settings().researcher.model
+        return {"answer": "a", "sources": [], "findings": [], "search_calls": 0}
+
+    monkeypatch.setattr(app.main, "run_pipeline", fake_pipeline)
+    monkeypatch.setattr(app.main, "require_openrouter_key", lambda *a, **k: None)
+    try:
+        main(["--model", "google/gemma-4-31b-it:free", "why?"])
+        assert seen["model"] == "google/gemma-4-31b-it:free"
+        assert all(
+            getattr(get_settings(), r).model == "google/gemma-4-31b-it:free"
+            for r in ROLE_NAMES
+        )
+    finally:
+        get_settings.cache_clear()
+
+
+def test_model_flag_accepts_shortlist_number(monkeypatch):
+    from app.config import MODEL_CHOICES, get_settings
+
+    monkeypatch.setattr(
+        app.main,
+        "run_pipeline",
+        lambda q, graph=None: {"answer": "", "sources": [], "findings": [], "search_calls": 0},
+    )
+    monkeypatch.setattr(app.main, "require_openrouter_key", lambda *a, **k: None)
+    try:
+        main(["--model", "2", "q"])
+        assert get_settings().researcher.model == MODEL_CHOICES[1]
+    finally:
+        get_settings.cache_clear()
+
+
+def test_repl_model_command_switches_without_researching(monkeypatch, capsys):
+    from app.config import get_settings
+
+    def forbidden(*a, **k):
+        raise AssertionError("/model must not run the pipeline")
+
+    answers = iter(["/model google/gemma-4-26b-a4b-it:free", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    monkeypatch.setattr(app.main, "run_pipeline", forbidden)
+    monkeypatch.setattr(app.main, "require_openrouter_key", lambda *a, **k: None)
+    try:
+        main([])
+        assert get_settings().researcher.model == "google/gemma-4-26b-a4b-it:free"
+    finally:
+        get_settings.cache_clear()

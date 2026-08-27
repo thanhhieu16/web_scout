@@ -17,8 +17,23 @@ def load_env_file(env_path: str | None = None) -> None:
 load_env_file()
 
 
+ROLE_NAMES = ("researcher", "verifier", "answer", "judge")
+
+DEFAULT_MODEL = "z-ai/glm-5.3-flash"
+
+# Shortlist offered by `webscout --list-models`. Not a whitelist: --model takes
+# any OpenRouter slug, because a hard enum rots the day a model is retired.
+MODEL_CHOICES = (
+    DEFAULT_MODEL,
+    "minimax/minimax-m3:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "minimax/minimax-m2.7:free",
+    "google/gemma-4-31b-it:free",
+)
+
+
 class RoleConfig(BaseModel):
-    model: str = "stealth/ox-alpha"
+    model: str = DEFAULT_MODEL
     temperature: float = 0.0
 
 
@@ -101,3 +116,17 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+def override_model(model: str) -> Settings:
+    """Point every role at one model for the rest of this process.
+
+    Mutates the cached Settings in place instead of threading a model argument
+    through get_settings(): every call site already reads the cached instance,
+    so this is what makes `--model` reach nodes, tools and evaluators alike.
+    """
+    get_settings.cache_clear()
+    settings = get_settings()
+    for role in ROLE_NAMES:
+        getattr(settings, role).model = model
+    return settings

@@ -97,6 +97,19 @@ uv run webscout
 webscout> your question here
 ```
 
+**Choosing a model** — `--model` points every role at one model for that run. It takes any
+OpenRouter slug, or a number from the shortlist that `--list-models` prints:
+
+```powershell
+uv run webscout --list-models
+uv run webscout "..." --model minimax/minimax-m3:free
+uv run webscout "..." --model 2                        # same, by shortlist number
+```
+
+Inside the REPL, `/model` lists the shortlist and `/model <slug|number>` switches without
+leaving the session. Per-role temperatures from `config.yaml` are kept either way; to give
+roles *different* models, edit `config.yaml` instead.
+
 **Markdown report** — same run, plus a file containing the answer, findings and sources:
 
 ```powershell
@@ -169,13 +182,13 @@ comparable.
 
 | Key | Default | Description |
 |---|---|---|
-| `researcher.model` | `stealth/ox-alpha` | Model for the research agent (via OpenRouter) |
+| `researcher.model` | `z-ai/glm-5.3-flash` | Model for the research agent (via OpenRouter) |
 | `researcher.temperature` | `0.2` | Sampling temperature for research |
-| `verifier.model` | `stealth/ox-alpha` | Model for the sufficiency verdict |
+| `verifier.model` | `z-ai/glm-5.3-flash` | Model for the sufficiency verdict |
 | `verifier.temperature` | `0.0` | Verifier temperature (deterministic) |
-| `answer.model` | `stealth/ox-alpha` | Model writing the final narrative |
+| `answer.model` | `z-ai/glm-5.3-flash` | Model writing the final narrative |
 | `answer.temperature` | `0.3` | Answer temperature |
-| `judge.model` | `stealth/ox-alpha` | Model grading eval runs — swap it off the model under test to avoid self-grading |
+| `judge.model` | `z-ai/glm-5.3-flash` | Model grading eval runs — swap it off the model under test to avoid self-grading |
 | `judge.temperature` | `0.0` | Judge temperature (deterministic) |
 | `max_iterations` | `3` | Max research → verify loops before forcing an answer |
 | `skills_enabled` | `true` | Attach the `web-research` methodology skill to the agent |

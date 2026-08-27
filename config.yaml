@@ -1,14 +1,14 @@
-﻿researcher:
-  model: stealth/ox-alpha
+researcher:
+  model: z-ai/glm-5.3-flash
   temperature: 0.2
 verifier:
-  model: stealth/ox-alpha
+  model: z-ai/glm-5.3-flash
   temperature: 0.0
 answer:
-  model: stealth/ox-alpha
+  model: z-ai/glm-5.3-flash
   temperature: 0.3
 judge:
-  model: stealth/ox-alpha
+  model: z-ai/glm-5.3-flash
   temperature: 0.0
 max_iterations: 3
 skills_enabled: true

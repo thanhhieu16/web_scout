@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.agent import build_research_agent
-from app.config import get_settings
+from app.config import MODEL_CHOICES, get_settings, override_model
 from app.graph import build_graph
 from app.nodes.parsing import (
     build_sources,
@@ -129,6 +129,21 @@ def write_report(question: str, out: dict, path: str) -> None:
     Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
+def _print_models(current: str) -> None:
+    print("Available models (any OpenRouter slug also works):")
+    for i, slug in enumerate(MODEL_CHOICES, 1):
+        mark = " *" if slug == current else ""
+        print(f"  {i}. {slug}{mark}")
+    print("  * = currently selected")
+
+
+def _resolve_choice(raw: str) -> str:
+    """Accept either a shortlist index or a raw slug."""
+    if raw.isdigit() and 1 <= int(raw) <= len(MODEL_CHOICES):
+        return MODEL_CHOICES[int(raw) - 1]
+    return raw
+
+
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="webscout")
     parser.add_argument("question", nargs="*", help="research question")
@@ -137,7 +152,24 @@ def main(argv=None) -> None:
         default=None,
         help="write a markdown report to this path (one-shot mode)",
     )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="OpenRouter model slug (or shortlist number) for every role",
+    )
+    parser.add_argument(
+        "--list-models",
+        action="store_true",
+        help="print the model shortlist and exit",
+    )
     args = parser.parse_args(argv)
+    if args.list_models:
+        _print_models(get_settings().researcher.model)
+        return
+    if args.model:
+        chosen = _resolve_choice(args.model)
+        override_model(chosen)
+        print(f"[model] {chosen}")
     require_openrouter_key()
     if args.question:
         question = " ".join(args.question)
@@ -155,6 +187,15 @@ def main(argv=None) -> None:
             break
         if not q or q.lower() in {"exit", "quit"}:
             break
+        if q.split()[0].lower() in {"/model", "/models"}:
+            parts = q.split(maxsplit=1)
+            if len(parts) == 1:
+                _print_models(get_settings().researcher.model)
+            else:
+                chosen = _resolve_choice(parts[1].strip())
+                override_model(chosen)
+                print(f"[model] {chosen}")
+            continue
         _print_result(run_pipeline(q))
 
 
