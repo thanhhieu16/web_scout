@@ -76,6 +76,99 @@ body {
   color: var(--text-dim);
 }
 
+#sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#new-conversation {
+  padding: 8px 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+#new-conversation:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+#conversation-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border-radius: 4px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+
+.conversation-item:hover {
+  background: var(--panel-2);
+}
+
+.conversation-item.active {
+  border-left-color: var(--accent);
+  background: var(--panel-2);
+}
+
+.conversation-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.conversation-actions button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 3px;
+}
+
+.conversation-actions button:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+#settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 #sidebar select,
 #sidebar input {
   width: 100%;
@@ -404,5 +497,9 @@ body {
   }
   #composer {
     padding: 14px 18px;
+  }
+  #conversation-list {
+    width: 100%;
+    max-height: 160px;
   }
 }

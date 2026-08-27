@@ -5,10 +5,13 @@ const sendEl = document.getElementById("send");
 const modelSelectEl = document.getElementById("model-select");
 const maxIterEl = document.getElementById("max-iterations");
 const bannerEl = document.getElementById("key-banner");
+const newConversationEl = document.getElementById("new-conversation");
+const conversationListEl = document.getElementById("conversation-list");
 
-let turns = []; // {question, out}
 let currentModel = null;
 let turnCounter = 0;
+let activeConversationId = null;
+let conversations = []; // [{id, title, updated_at}]
 
 const STATUS_LABELS = {
   research: "Đang research...",
@@ -162,14 +165,115 @@ function parseSseFrame(frame) {
   return data ? { event, data: JSON.parse(data) } : null;
 }
 
+function renderConversationList() {
+  conversationListEl.replaceChildren();
+  conversations.forEach((c) => {
+    const item = document.createElement("div");
+    item.className = `conversation-item${c.id === activeConversationId ? " active" : ""}`;
+
+    const title = document.createElement("span");
+    title.className = "conversation-title";
+    title.textContent = c.title;
+    title.addEventListener("click", () => selectConversation(c.id));
+    item.appendChild(title);
+
+    const actions = document.createElement("span");
+    actions.className = "conversation-actions";
+
+    const renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.textContent = "✎";
+    renameBtn.title = "Đổi tên";
+    renameBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      renameConversation(c.id, c.title);
+    });
+    actions.appendChild(renameBtn);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "×";
+    deleteBtn.title = "Xóa";
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteConversation(c.id);
+    });
+    actions.appendChild(deleteBtn);
+
+    item.appendChild(actions);
+    conversationListEl.appendChild(item);
+  });
+}
+
+async function loadConversations() {
+  const resp = await fetch("/api/conversations");
+  conversations = await resp.json();
+  renderConversationList();
+}
+
+async function createConversation() {
+  const resp = await fetch("/api/conversations", { method: "POST" });
+  const conv = await resp.json();
+  conversations.unshift({ id: conv.id, title: conv.title, updated_at: null });
+  await selectConversation(conv.id);
+}
+
+async function selectConversation(id) {
+  activeConversationId = id;
+  renderConversationList();
+  const resp = await fetch(`/api/conversations/${id}`);
+  const data = await resp.json();
+  logEl.replaceChildren();
+  data.messages.forEach((m) => {
+    addBubble("user", m.question);
+    const bubble = document.createElement("div");
+    bubble.className = "bubble assistant";
+    logEl.appendChild(bubble);
+    renderResult(bubble, m.question, m.out);
+  });
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function renameConversation(id, currentTitle) {
+  const next = window.prompt("Đổi tên hội thoại:", currentTitle);
+  if (next === null) return;
+  const title = next.trim();
+  if (!title) return;
+  const resp = await fetch(`/api/conversations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  if (!resp.ok) return;
+  const updated = await resp.json();
+  const conv = conversations.find((c) => c.id === id);
+  if (conv) conv.title = updated.title;
+  renderConversationList();
+}
+
+async function deleteConversation(id) {
+  if (!window.confirm("Xóa hội thoại này?")) return;
+  const resp = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+  if (!resp.ok) return;
+  conversations = conversations.filter((c) => c.id !== id);
+  if (activeConversationId === id) {
+    if (conversations.length) {
+      await selectConversation(conversations[0].id);
+    } else {
+      await createConversation();
+    }
+  } else {
+    renderConversationList();
+  }
+}
+
 async function sendQuestion(question) {
   addBubble("user", question);
   const thinking = addBubble("assistant", STATUS_LABELS.research, "pending");
 
-  const history = turns.map((t) => ({ question: t.question, answer: t.out.answer }));
   const body = {
+    conversation_id: activeConversationId,
     question,
-    history,
     model: modelSelectEl.value !== currentModel ? modelSelectEl.value : null,
     max_iterations: Number(maxIterEl.value) || null,
   };
@@ -216,7 +320,7 @@ async function sendQuestion(question) {
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const frames = buffer.split("\n\n");
-        buffer = frames.pop(); // keep the last, possibly incomplete frame
+        buffer = frames.pop();
         for (const frame of frames) {
           const parsed = parseSseFrame(frame);
           if (!parsed) continue;
@@ -225,7 +329,6 @@ async function sendQuestion(question) {
             thinking.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
           } else if (event === "result") {
             renderResult(thinking, question, data);
-            turns.push({ question, out: data });
             sawTerminalEvent = true;
           } else if (event === "error") {
             thinking.textContent = `Lỗi: ${data.message}`;
@@ -246,6 +349,8 @@ async function sendQuestion(question) {
       thinking.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
       thinking.classList.remove("pending");
       thinking.classList.add("error");
+    } else {
+      await loadConversations();
     }
   } finally {
     questionEl.disabled = false;
@@ -257,7 +362,7 @@ async function sendQuestion(question) {
 formEl.addEventListener("submit", (e) => {
   e.preventDefault();
   const question = questionEl.value.trim();
-  if (!question) return;
+  if (!question || !activeConversationId) return;
   questionEl.value = "";
   sendQuestion(question);
 });
@@ -267,6 +372,10 @@ questionEl.addEventListener("keydown", (e) => {
     e.preventDefault();
     formEl.requestSubmit();
   }
+});
+
+newConversationEl.addEventListener("click", () => {
+  createConversation();
 });
 
 async function loadModels() {
@@ -288,4 +397,21 @@ async function loadModels() {
   }
 }
 
-loadModels();
+async function init() {
+  await loadModels();
+  try {
+    await loadConversations();
+    if (conversations.length) {
+      await selectConversation(conversations[0].id);
+    } else {
+      await createConversation();
+    }
+  } catch (err) {
+    bannerEl.textContent = "Không kết nối được máy chủ. Thử tải lại trang.";
+    bannerEl.classList.remove("hidden");
+    questionEl.disabled = true;
+    sendEl.disabled = true;
+  }
+}
+
+init();

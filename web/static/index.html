@@ -14,17 +14,23 @@
 <body>
   <div id="app">
     <aside id="sidebar">
-      <div id="wordmark">
-        <span class="eyebrow">Case File</span>
-        <h1>WebScout</h1>
+      <div id="sidebar-header">
+        <div id="wordmark">
+          <span class="eyebrow">Case File</span>
+          <h1>WebScout</h1>
+        </div>
       </div>
-      <div class="field">
-        <label for="model-select">Model</label>
-        <select id="model-select"></select>
-      </div>
-      <div class="field">
-        <label for="max-iterations">Max iterations</label>
-        <input id="max-iterations" type="number" min="1" max="10" value="3" />
+      <button id="new-conversation" type="button">+ Cuộc hội thoại mới</button>
+      <div id="conversation-list"></div>
+      <div id="settings">
+        <div class="field">
+          <label for="model-select">Model</label>
+          <select id="model-select"></select>
+        </div>
+        <div class="field">
+          <label for="max-iterations">Max iterations</label>
+          <input id="max-iterations" type="number" min="1" max="10" value="3" />
+        </div>
       </div>
       <div id="key-banner" class="banner hidden">
         OPENROUTER_API_KEY chưa được cấu hình. Xem README để thiết lập .env.
