@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import MODEL_CHOICES, get_settings, override_model
 from app.conversation import condense_question
@@ -23,7 +23,7 @@ class ChatRequest(BaseModel):
     question: str
     history: list[HistoryTurn] = []
     model: str | None = None
-    max_iterations: int | None = None
+    max_iterations: int | None = Field(default=None, ge=1, le=10)
 
 
 class ReportRequest(BaseModel):

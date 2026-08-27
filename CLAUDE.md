@@ -10,6 +10,7 @@ uv sync                                        # install (dev group = pytest, ru
 uv run webscout "question"                     # one-shot run (full graph)
 uv run webscout                                # interactive REPL
 uv run webscout "q" --out report.md            # + markdown report
+uv sync --group web && uv run uvicorn web.server:app --reload   # browser chat UI (see web/server.py)
 
 uv run pytest -m "not integration"             # offline suite (what CI runs)
 uv run pytest -m integration                   # hits OpenRouter + live web
@@ -67,6 +68,10 @@ pydantic-settings with source order **init kwargs > env > `.env` > `config.yaml`
 
 Every LLM call goes through [call_with_backoff](app/backoff.py). Its default is 5 attempts, linear 20s·n backoff, retrying only `OpenAIRateLimitError` — but `retry_on` accepts either a tuple of exception types or a predicate, and callers with a different failure profile pass their own: `web_search` ([app/tools/search_tool.py](app/tools/search_tool.py)) uses `attempts=3, base_delay=2.0` with an HTTP-status predicate, so a hung search fails fast instead of blocking on the LLM-call defaults.
 
+### Web chat UI
+
+`web/server.py` (FastAPI) streams `app/main.py`'s `stream_pipeline` generator as Server-Sent Events for `POST /api/chat`; the same generator also backs the CLI's `run_pipeline`, so there is one implementation of "drive the graph, report progress," not two. Conversation-aware follow-ups go through `app/conversation.py::condense_question` before reaching the graph. The `web` dependency group (`fastapi`, `uvicorn`) is separate from `dev` so it never affects the default `uv sync` or CI.
+
 ## Testing conventions
 
 The offline suite must stay network-free. Seams that make that possible:
@@ -77,6 +82,7 @@ The offline suite must stay network-free. Seams that make that possible:
 - `make_web_search(settings, transport=..., usage=...)`, `build_research_agent(settings, usage=...)`, and `make_research_node(agent, settings, usage=...)` all take an injectable `UsageCollector` so tests can assert on drained tokens/cost/searches without a real HTTP round-trip.
 - `build_graph` looks up `build_research_agent` as a module attribute, so tests `monkeypatch.setattr(g, "build_research_agent", ...)`.
 - Anything needing a key or the live web must carry `@pytest.mark.integration`.
+- `tests/test_server.py` starts with `pytest.importorskip("fastapi")` so it skips cleanly when the `web` group isn't installed — the default `uv sync`/CI never sees it.
 
 ## Docs
 

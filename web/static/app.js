@@ -7,6 +7,7 @@ const maxIterEl = document.getElementById("max-iterations");
 const bannerEl = document.getElementById("key-banner");
 
 let turns = []; // {question, out}
+let currentModel = null;
 
 const STATUS_LABELS = {
   research: "Đang research...",
@@ -121,47 +122,82 @@ async function sendQuestion(question) {
   const body = {
     question,
     history,
-    model: modelSelectEl.value || null,
+    model: modelSelectEl.value !== currentModel ? modelSelectEl.value : null,
     max_iterations: Number(maxIterEl.value) || null,
   };
 
-  let resp;
+  questionEl.disabled = true;
+  sendEl.disabled = true;
+
   try {
-    resp = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    thinking.textContent = `Lỗi kết nối: ${err.message}`;
-    thinking.classList.add("error");
-    return;
-  }
-
-  const reader = resp.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop(); // keep the last, possibly incomplete frame
-    for (const frame of frames) {
-      const parsed = parseSseFrame(frame);
-      if (!parsed) continue;
-      const { event, data } = parsed;
-      if (event === "status") {
-        thinking.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
-      } else if (event === "result") {
-        renderResult(thinking, question, data);
-        turns.push({ question, out: data });
-      } else if (event === "error") {
-        thinking.textContent = `Lỗi: ${data.message}`;
-        thinking.classList.add("error");
-      }
+    let resp;
+    try {
+      resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      thinking.textContent = `Lỗi kết nối: ${err.message}`;
+      thinking.classList.add("error");
+      return;
     }
+
+    if (!resp.ok) {
+      let detail = "";
+      try {
+        detail = await resp.text();
+      } catch {
+        // best-effort only; fall back to the status line below
+      }
+      thinking.textContent = `Lỗi: ${resp.status} ${resp.statusText}${detail ? " — " + detail : ""}`;
+      thinking.classList.add("error");
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let sawTerminalEvent = false;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop(); // keep the last, possibly incomplete frame
+        for (const frame of frames) {
+          const parsed = parseSseFrame(frame);
+          if (!parsed) continue;
+          const { event, data } = parsed;
+          if (event === "status") {
+            thinking.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
+          } else if (event === "result") {
+            renderResult(thinking, question, data);
+            turns.push({ question, out: data });
+            sawTerminalEvent = true;
+          } else if (event === "error") {
+            thinking.textContent = `Lỗi: ${data.message}`;
+            thinking.classList.add("error");
+            sawTerminalEvent = true;
+          }
+        }
+      }
+    } catch (err) {
+      thinking.textContent = `Lỗi: ${err.message}`;
+      thinking.classList.add("error");
+      return;
+    }
+
+    if (!sawTerminalEvent) {
+      thinking.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
+      thinking.classList.add("error");
+    }
+  } finally {
+    questionEl.disabled = false;
+    sendEl.disabled = false;
+    questionEl.focus();
   }
 }
 
@@ -183,6 +219,7 @@ questionEl.addEventListener("keydown", (e) => {
 async function loadModels() {
   const resp = await fetch("/api/models");
   const data = await resp.json();
+  currentModel = data.current;
   modelSelectEl.innerHTML = "";
   for (const choice of data.choices) {
     const opt = document.createElement("option");

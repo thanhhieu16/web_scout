@@ -38,6 +38,8 @@ def condense_question(
                 ("system", _CONDENSE_SYSTEM_PROMPT),
                 ("human", f"Conversation so far:\n{transcript}\n\nLatest question:\n{question}"),
             ],
+            attempts=2,
+            base_delay=2.0,
         )
         rewritten = str(result.content).strip()
         return rewritten or question
