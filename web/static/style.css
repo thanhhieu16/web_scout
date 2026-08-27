@@ -118,6 +118,10 @@ body {
 }
 
 #new-conversation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 10px;
   background: var(--accent-soft);
   color: var(--accent);
@@ -133,6 +137,36 @@ body {
 #new-conversation:hover {
   background: var(--accent);
   color: var(--bg);
+}
+
+.kbd-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.conversation-group-heading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 10px 8px 4px;
+}
+
+.conversation-group-heading:first-child {
+  padding-top: 0;
+}
+
+.conversation-empty {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
 }
 
 #conversation-list {
@@ -177,6 +211,13 @@ body {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.conversation-item:hover .conversation-actions,
+.conversation-item.active .conversation-actions {
+  opacity: 1;
 }
 
 .conversation-actions button {
@@ -247,6 +288,28 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
+}
+
+#scroll-bottom {
+  position: absolute;
+  right: 24px;
+  bottom: 96px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+
+#scroll-bottom:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 #log {
@@ -301,42 +364,64 @@ body {
 
 .trace {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 10px;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
 }
 
-.chip {
+.trace-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   position: relative;
+  padding: 3px 0;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.03em;
   color: var(--text-dim);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 6px;
 }
 
-.chip:not(:last-child)::after {
-  content: "→";
+.trace-step:not(:last-child)::before {
+  content: "";
   position: absolute;
-  top: 50%;
-  right: -14px;
-  transform: translateY(-50%);
-  color: var(--text-dim);
-  font-size: 10px;
+  left: 4px;
+  top: 16px;
+  width: 1px;
+  height: calc(100% - 4px);
+  background: var(--border);
 }
 
-.chip.active {
-  color: var(--accent);
+.trace-badge {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--text-dim);
+  z-index: 1;
+}
+
+.trace-step.completed .trace-badge {
+  background: var(--text-dim);
+  border-color: var(--text-dim);
+}
+
+.trace-label {
+  text-transform: uppercase;
+}
+
+.trace-step.active .trace-badge {
+  background: var(--accent);
   border-color: var(--accent);
-  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.trace-step.active .trace-label {
+  color: var(--accent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .chip.active {
+  .trace-step.active .trace-badge {
     animation: pulse 1.6s ease-in-out infinite;
   }
 }

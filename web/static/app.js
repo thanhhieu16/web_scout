@@ -7,6 +7,8 @@ const maxIterEl = document.getElementById("max-iterations");
 const bannerEl = document.getElementById("key-banner");
 const newConversationEl = document.getElementById("new-conversation");
 const conversationListEl = document.getElementById("conversation-list");
+const conversationSearchEl = document.getElementById("conversation-search");
+const scrollBottomEl = document.getElementById("scroll-bottom");
 const themeToggleEl = document.getElementById("theme-toggle");
 
 let currentModel = null;
@@ -190,45 +192,88 @@ function parseSseFrame(frame) {
   return data ? { event, data: JSON.parse(data) } : null;
 }
 
+function conversationBucket(updatedAt) {
+  const updated = updatedAt ? new Date(updatedAt) : null;
+  if (!updated || Number.isNaN(updated.getTime())) return "Hôm nay";
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (updated >= startOfToday) return "Hôm nay";
+  const weekAgo = new Date(startOfToday);
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  if (updated >= weekAgo) return "7 ngày qua";
+  return "Cũ hơn";
+}
+
+function buildConversationItem(c) {
+  const item = document.createElement("div");
+  item.className = `conversation-item${c.id === activeConversationId ? " active" : ""}`;
+
+  const title = document.createElement("span");
+  title.className = "conversation-title";
+  title.textContent = c.title;
+  title.addEventListener("click", () => selectConversation(c.id));
+  item.appendChild(title);
+
+  const actions = document.createElement("span");
+  actions.className = "conversation-actions";
+
+  const renameBtn = document.createElement("button");
+  renameBtn.type = "button";
+  renameBtn.textContent = "✎";
+  renameBtn.title = "Đổi tên";
+  renameBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    renameConversation(c.id, c.title);
+  });
+  actions.appendChild(renameBtn);
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.textContent = "×";
+  deleteBtn.title = "Xóa";
+  deleteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    deleteConversation(c.id);
+  });
+  actions.appendChild(deleteBtn);
+
+  item.appendChild(actions);
+  return item;
+}
+
 function renderConversationList() {
   conversationListEl.replaceChildren();
-  conversations.forEach((c) => {
-    const item = document.createElement("div");
-    item.className = `conversation-item${c.id === activeConversationId ? " active" : ""}`;
+  const query = conversationSearchEl.value.trim().toLowerCase();
+  const filtered = query
+    ? conversations.filter((c) => c.title.toLowerCase().includes(query))
+    : conversations;
 
-    const title = document.createElement("span");
-    title.className = "conversation-title";
-    title.textContent = c.title;
-    title.addEventListener("click", () => selectConversation(c.id));
-    item.appendChild(title);
-
-    const actions = document.createElement("span");
-    actions.className = "conversation-actions";
-
-    const renameBtn = document.createElement("button");
-    renameBtn.type = "button";
-    renameBtn.textContent = "✎";
-    renameBtn.title = "Đổi tên";
-    renameBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      renameConversation(c.id, c.title);
-    });
-    actions.appendChild(renameBtn);
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.textContent = "×";
-    deleteBtn.title = "Xóa";
-    deleteBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      deleteConversation(c.id);
-    });
-    actions.appendChild(deleteBtn);
-
-    item.appendChild(actions);
-    conversationListEl.appendChild(item);
+  const groups = new Map();
+  filtered.forEach((c) => {
+    const bucket = conversationBucket(c.updated_at);
+    if (!groups.has(bucket)) groups.set(bucket, []);
+    groups.get(bucket).push(c);
   });
+
+  ["Hôm nay", "7 ngày qua", "Cũ hơn"].forEach((bucket) => {
+    const items = groups.get(bucket);
+    if (!items || !items.length) return;
+    const heading = document.createElement("div");
+    heading.className = "conversation-group-heading";
+    heading.textContent = bucket;
+    conversationListEl.appendChild(heading);
+    items.forEach((c) => conversationListEl.appendChild(buildConversationItem(c)));
+  });
+
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "conversation-empty";
+    empty.textContent = query ? "Không tìm thấy hội thoại." : "Chưa có hội thoại nào.";
+    conversationListEl.appendChild(empty);
+  }
 }
+
+conversationSearchEl.addEventListener("input", () => renderConversationList());
 
 async function loadConversations() {
   const resp = await fetch("/api/conversations");
@@ -297,6 +342,7 @@ function startAssistantBubble() {
   bubble.className = "bubble assistant pending";
   const trace = document.createElement("div");
   trace.className = "trace";
+  trace.dataset.researchCount = "0";
   bubble.appendChild(trace);
   const status = document.createElement("div");
   status.className = "status-text";
@@ -307,18 +353,42 @@ function startAssistantBubble() {
   return { bubble, trace, status };
 }
 
-function addTraceChip(trace, node) {
-  const prevActive = trace.querySelector(".chip.active");
-  if (prevActive) prevActive.classList.remove("active");
-  const chip = document.createElement("span");
-  chip.className = "chip active";
-  chip.textContent = node;
-  trace.appendChild(chip);
+function traceStepLabel(trace, node) {
+  if (node === "research") {
+    trace.dataset.researchCount = String(Number(trace.dataset.researchCount || "0") + 1);
+    return `Research — vòng ${trace.dataset.researchCount}`;
+  }
+  if (node === "verify") {
+    return `Verify — vòng ${trace.dataset.researchCount || "1"}`;
+  }
+  if (node === "answer") return "Answer";
+  return node;
+}
+
+function addTraceStep(trace, node) {
+  const prevActive = trace.querySelector(".trace-step.active");
+  if (prevActive) {
+    prevActive.classList.remove("active");
+    prevActive.classList.add("completed");
+  }
+  const step = document.createElement("div");
+  step.className = "trace-step active";
+  const badge = document.createElement("span");
+  badge.className = "trace-badge";
+  step.appendChild(badge);
+  const label = document.createElement("span");
+  label.className = "trace-label";
+  label.textContent = traceStepLabel(trace, node);
+  step.appendChild(label);
+  trace.appendChild(step);
 }
 
 function settleTrace(trace) {
-  const active = trace.querySelector(".chip.active");
-  if (active) active.classList.remove("active");
+  const active = trace.querySelector(".trace-step.active");
+  if (active) {
+    active.classList.remove("active");
+    active.classList.add("completed");
+  }
 }
 
 async function sendQuestion(question) {
@@ -387,7 +457,7 @@ async function sendQuestion(question) {
           const stale = activeConversationId !== turnConversationId;
           if (event === "status") {
             if (!stale) {
-              addTraceChip(trace, data.node);
+              addTraceStep(trace, data.node);
               status.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
             }
           } else if (event === "result") {
@@ -451,6 +521,22 @@ questionEl.addEventListener("keydown", (e) => {
 
 newConversationEl.addEventListener("click", () => {
   createConversation();
+});
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    createConversation();
+  }
+});
+
+logEl.addEventListener("scroll", () => {
+  const distanceFromBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight;
+  scrollBottomEl.classList.toggle("hidden", distanceFromBottom < 120);
+});
+
+scrollBottomEl.addEventListener("click", () => {
+  logEl.scrollTo({ top: logEl.scrollHeight, behavior: "smooth" });
 });
 
 async function loadModels() {

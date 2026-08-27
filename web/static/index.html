@@ -21,7 +21,11 @@
         </div>
         <button id="theme-toggle" type="button" aria-label="Đổi giao diện sáng/tối">☾</button>
       </div>
-      <button id="new-conversation" type="button">+ Cuộc hội thoại mới</button>
+      <button id="new-conversation" type="button">
+        <span>+ Cuộc hội thoại mới</span>
+        <span class="kbd-hint">Ctrl+K</span>
+      </button>
+      <input id="conversation-search" type="text" placeholder="Tìm hội thoại..." autocomplete="off" />
       <div id="conversation-list"></div>
       <div id="settings">
         <div class="field">
@@ -39,6 +43,7 @@
     </aside>
     <main id="chat">
       <div id="log"></div>
+      <button id="scroll-bottom" type="button" class="hidden" aria-label="Cuộn xuống dưới">↓</button>
       <form id="composer">
         <textarea
           id="question"
