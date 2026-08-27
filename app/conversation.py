@@ -1,3 +1,4 @@
+from app.backoff import call_with_backoff
 from app.config import Settings, get_settings
 from app.models import get_model
 
@@ -31,11 +32,12 @@ def condense_question(
         f"Q: {t.get('question', '')}\nA: {t.get('answer', '')}" for t in turns
     )
     try:
-        result = active_model.invoke(
+        result = call_with_backoff(
+            active_model.invoke,
             [
                 ("system", _CONDENSE_SYSTEM_PROMPT),
                 ("human", f"Conversation so far:\n{transcript}\n\nLatest question:\n{question}"),
-            ]
+            ],
         )
         rewritten = str(result.content).strip()
         return rewritten or question
