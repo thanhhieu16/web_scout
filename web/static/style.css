@@ -295,6 +295,48 @@ body {
   }
 }
 
+.trace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.chip {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.chip:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  transform: translateY(-50%);
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.chip.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chip.active {
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+}
+
 @keyframes pulse {
   0%,
   100% {

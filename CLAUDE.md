@@ -72,6 +72,8 @@ Every LLM call goes through [call_with_backoff](app/backoff.py). Its default is 
 
 `web/server.py` (FastAPI) streams `app/main.py`'s `stream_pipeline` generator as Server-Sent Events for `POST /api/chat`; the same generator also backs the CLI's `run_pipeline`, so there is one implementation of "drive the graph, report progress," not two. Conversation-aware follow-ups go through `app/conversation.py::condense_question` before reaching the graph. The `web` dependency group (`fastapi`, `uvicorn`) is separate from `dev` so it never affects the default `uv sync` or CI.
 
+Conversations persist server-side in `data/webscout.db` via `web/store.py` (stdlib `sqlite3`, no new dependency) — `POST /api/chat` now takes a `conversation_id` instead of a client-supplied `history` array, loading prior turns from the DB and appending the new one after the pipeline finishes. The chat UI's light/dark theme is a single CSS token system (`:root` = dark, `:root[data-theme="light"]` overrides) toggled client-side via `localStorage["webscout-theme"]`; per-turn node status accumulates as visible trace chips instead of being overwritten.
+
 ## Testing conventions
 
 The offline suite must stay network-free. Seams that make that possible:

@@ -61,8 +61,10 @@ function addBubble(role, text, extraClass) {
 }
 
 function renderResult(bubble, question, out) {
+  const existingTrace = bubble.querySelector(".trace");
   bubble.textContent = "";
   bubble.classList.remove("error", "pending");
+  if (existingTrace) bubble.appendChild(existingTrace);
 
   const turnId = `t${turnCounter++}`;
   const sources = out.sources || [];
@@ -290,9 +292,38 @@ async function deleteConversation(id) {
   }
 }
 
+function startAssistantBubble() {
+  const bubble = document.createElement("div");
+  bubble.className = "bubble assistant pending";
+  const trace = document.createElement("div");
+  trace.className = "trace";
+  bubble.appendChild(trace);
+  const status = document.createElement("div");
+  status.className = "status-text";
+  status.textContent = STATUS_LABELS.research;
+  bubble.appendChild(status);
+  logEl.appendChild(bubble);
+  logEl.scrollTop = logEl.scrollHeight;
+  return { bubble, trace, status };
+}
+
+function addTraceChip(trace, node) {
+  const prevActive = trace.querySelector(".chip.active");
+  if (prevActive) prevActive.classList.remove("active");
+  const chip = document.createElement("span");
+  chip.className = "chip active";
+  chip.textContent = node;
+  trace.appendChild(chip);
+}
+
+function settleTrace(trace) {
+  const active = trace.querySelector(".chip.active");
+  if (active) active.classList.remove("active");
+}
+
 async function sendQuestion(question) {
   addBubble("user", question);
-  const thinking = addBubble("assistant", STATUS_LABELS.research, "pending");
+  const { bubble: thinking, trace, status } = startAssistantBubble();
 
   const body = {
     conversation_id: activeConversationId,
@@ -313,7 +344,7 @@ async function sendQuestion(question) {
         body: JSON.stringify(body),
       });
     } catch (err) {
-      thinking.textContent = `Lỗi kết nối: ${err.message}`;
+      status.textContent = `Lỗi kết nối: ${err.message}`;
       thinking.classList.remove("pending");
       thinking.classList.add("error");
       return;
@@ -326,7 +357,7 @@ async function sendQuestion(question) {
       } catch {
         // best-effort only; fall back to the status line below
       }
-      thinking.textContent = `Lỗi: ${resp.status} ${resp.statusText}${detail ? " — " + detail : ""}`;
+      status.textContent = `Lỗi: ${resp.status} ${resp.statusText}${detail ? " — " + detail : ""}`;
       thinking.classList.remove("pending");
       thinking.classList.add("error");
       return;
@@ -349,12 +380,15 @@ async function sendQuestion(question) {
           if (!parsed) continue;
           const { event, data } = parsed;
           if (event === "status") {
-            thinking.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
+            addTraceChip(trace, data.node);
+            status.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
           } else if (event === "result") {
+            settleTrace(trace);
             renderResult(thinking, question, data);
             sawTerminalEvent = true;
           } else if (event === "error") {
-            thinking.textContent = `Lỗi: ${data.message}`;
+            settleTrace(trace);
+            status.textContent = `Lỗi: ${data.message}`;
             thinking.classList.remove("pending");
             thinking.classList.add("error");
             sawTerminalEvent = true;
@@ -362,14 +396,16 @@ async function sendQuestion(question) {
         }
       }
     } catch (err) {
-      thinking.textContent = `Lỗi: ${err.message}`;
+      settleTrace(trace);
+      status.textContent = `Lỗi: ${err.message}`;
       thinking.classList.remove("pending");
       thinking.classList.add("error");
       return;
     }
 
     if (!sawTerminalEvent) {
-      thinking.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
+      settleTrace(trace);
+      status.textContent = "Lỗi: kết nối bị ngắt trước khi có kết quả.";
       thinking.classList.remove("pending");
       thinking.classList.add("error");
     } else {
