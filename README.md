@@ -5,6 +5,10 @@
 </p>
 
 <p align="center">
+  English | <a href="README.vi.md">Tiếng Việt</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/thanhhieu16/web_scout/actions/workflows/test.yml"><img alt="tests" src="https://github.com/thanhhieu16/web_scout/actions/workflows/test.yml/badge.svg"></a>
   <img alt="python" src="https://img.shields.io/badge/python-3.12%2B-blue">
   <a href="https://docs.astral.sh/uv/"><img alt="uv" src="https://img.shields.io/badge/managed%20by-uv-261230"></a>
@@ -23,6 +27,8 @@ tracing and evals on **LangSmith**.
 - **Citations reconstructed, not trusted** — every `[n]` in the answer is reconciled against URLs the agent actually retrieved.
 - **Real reading, not just snippets** — `web_fetch` streams pages under a byte cap and extracts article text with trafilatura.
 - **Guarded fetching** — `web_fetch` refuses non-HTTP schemes and any host resolving to a private, loopback, or link-local address, re-checking on every redirect hop.
+- **Resilient search** — falls back to scraping DuckDuckGo's no-JS HTML endpoint when OpenRouter's search hard-fails, so one outage doesn't stall research.
+- **Cached repeat lookups** — a 30-minute in-memory cache skips repeat OpenRouter searches and page fetches within a session or across related follow-up questions.
 - **Budget visible on every run** — iterations, searches, sources, tokens and estimated cost printed as a METRICS line.
 - **Offline-testable** — the pipeline has injection seams throughout, so the default suite runs with no network and no API key.
 
@@ -116,7 +122,8 @@ roles *different* models, edit `config.yaml` instead.
 uv run webscout "What changed in the EU AI Act in 2026?" --out report.md
 ```
 
-**Browser chat UI** — conversation-aware follow-ups, live per-node status, model picker:
+**Browser chat UI** — conversation-aware follow-ups, a live activity-log trace of every
+node and tool call, model picker, light/dark theme:
 
 ```powershell
 uv sync --group web
@@ -125,7 +132,9 @@ uv run uvicorn web.server:app --reload
 
 Open `http://127.0.0.1:8000/`. This is a personal-testing tool: no login, no
 multi-user auth — conversation history persists server-side in `data/webscout.db`
-(see the "Zed editor" note below for how the ACP agent shares the same file).
+(see the "Zed editor" note below for how the ACP agent shares the same file). When
+`LANGSMITH_TRACING=true` and a `LANGSMITH_API_KEY` are set, each answer links to its
+LangSmith trace inline.
 
 **Zed editor (ACP)** — drive WebScout as an agent inside [Zed](https://zed.dev/), with
 per-node progress shown as a plan panel:
@@ -251,7 +260,8 @@ app/
   schemas.py     Findings / verdict / answer contracts
   backoff.py     retry wrapper around every LLM call
   nodes/         parsing, research, verify, answer
-  tools/         web_search adapter + client-side tool, web_fetch (httpx + trafilatura)
+  tools/         web_search adapter + client-side tool (DuckDuckGo fallback), web_fetch
+                 (httpx + trafilatura), cache.py (TTL cache shared by both)
 skills/
   web-research/  research methodology skill (toggled by skills_enabled)
 evals/           dataset.json, evaluators, run_evals runner, summarize
