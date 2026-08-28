@@ -272,6 +272,10 @@ tests/           offline suite (+ integration marker)
 | `cp65001` / Unicode errors when printing the answer on Windows | Set `$env:PYTHONIOENCODING="utf-8"` before running |
 | `OPENROUTER_API_KEY is not set...` on startup | Intentional early exit — copy `.env.example` to `.env` and fill it in, instead of failing mid-run with an OpenRouter 401 |
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 [MIT](LICENSE)
