@@ -7,17 +7,7 @@ ROLES = ROLE_NAMES
 
 
 class ResearchChatOpenAI(ChatOpenAI):
-    server_tools: list = []
     use_responses_api: bool = False
-
-    def _get_request_payload(self, *args, **kwargs):
-        payload = super()._get_request_payload(*args, **kwargs)
-        tools = list(payload.get("tools") or []) + list(self.server_tools)
-        if tools:
-            payload["tools"] = tools
-        else:
-            payload.pop("tools", None)
-        return payload
 
     def _create_chat_result(self, response, generation_info=None):
         result = super()._create_chat_result(response, generation_info)
