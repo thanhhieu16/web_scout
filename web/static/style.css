@@ -725,12 +725,20 @@ body {
   letter-spacing: 0.02em;
 }
 
-.download {
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 12px;
+}
+
+.download {
+  display: inline-block;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  text-decoration: none;
   padding: 6px 12px;
   background: transparent;
   color: var(--accent);
@@ -741,6 +749,52 @@ body {
 
 .download:hover {
   background: var(--accent-soft);
+}
+
+.trace-detail {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.trace-detail.hidden {
+  display: none;
+}
+
+.trace-node summary {
+  cursor: pointer;
+  padding: 3px 0;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.trace-node summary.trace-node-error {
+  color: var(--conf-low);
+}
+
+.trace-io {
+  margin: 4px 0 4px 16px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 10px;
+  color: var(--text-dim);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.trace-children {
+  margin-left: 16px;
+  border-left: 1px solid var(--border);
+  padding-left: 8px;
 }
 
 /* ---- composer ---- */

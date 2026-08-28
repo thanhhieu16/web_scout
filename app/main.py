@@ -3,6 +3,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from langchain_core.tracers.langchain import LangChainTracer
+
 from app.agent import build_research_agent
 from app.config import MODEL_CHOICES, get_settings, override_model
 from app.graph import build_graph
@@ -64,12 +66,21 @@ def stream_pipeline(question: str, graph=None, max_iterations: int | None = None
     mi = max_iterations if max_iterations is not None else s.max_iterations
     state = {"question": question, "iteration": 0, "max_iterations": mi}
     final = dict(state)
-    for mode, chunk in g.stream(state, stream_mode=["updates", "values"]):
+    tracer = LangChainTracer()
+    for mode, chunk in g.stream(
+        state, stream_mode=["updates", "values"], config={"callbacks": [tracer]}
+    ):
         if mode == "updates":
             for node in chunk:
                 yield ("status", node)
         else:
             final = chunk
+    try:
+        trace_url = tracer.get_run_url()
+        trace_run_id = str(tracer.latest_run.id) if tracer.latest_run else None
+    except Exception:
+        trace_url = None
+        trace_run_id = None
     yield (
         "result",
         {
@@ -81,6 +92,8 @@ def stream_pipeline(question: str, graph=None, max_iterations: int | None = None
             "iteration": final.get("iteration", 0),
             "total_tokens": final.get("total_tokens", 0),
             "total_cost": round(final.get("total_cost", 0.0), 4),
+            "trace_url": trace_url,
+            "trace_run_id": trace_run_id,
         },
     )
 

@@ -22,7 +22,7 @@ class _LinearFakeGraph:
     def __init__(self, final_answer="Final [1]."):
         self._final_answer = final_answer
 
-    def stream(self, state, stream_mode="updates"):
+    def stream(self, state, stream_mode="updates", **kwargs):
         values = dict(state)
         steps = [
             ("research", {"sources": []}),

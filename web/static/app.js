@@ -156,12 +156,100 @@ function renderResult(bubble, question, out) {
     `est_cost: $${(out.total_cost ?? 0).toFixed(4)}`;
   bubble.appendChild(metrics);
 
+  const actions = document.createElement("div");
+  actions.className = "result-actions";
+
   const download = document.createElement("button");
   download.type = "button";
   download.className = "download";
   download.textContent = "Tải report.md";
   download.addEventListener("click", () => downloadReport(question, out));
-  bubble.appendChild(download);
+  actions.appendChild(download);
+
+  if (out.trace_url) {
+    const traceLink = document.createElement("a");
+    traceLink.className = "download";
+    traceLink.href = out.trace_url;
+    traceLink.target = "_blank";
+    traceLink.rel = "noopener noreferrer";
+    traceLink.textContent = "Xem trên LangSmith";
+    actions.appendChild(traceLink);
+  }
+
+  let traceDetail = null;
+  if (out.trace_run_id) {
+    const traceBtn = document.createElement("button");
+    traceBtn.type = "button";
+    traceBtn.className = "download";
+    traceBtn.textContent = "Xem chi tiết trace";
+    traceDetail = document.createElement("div");
+    traceDetail.className = "trace-detail hidden";
+    traceBtn.addEventListener("click", () => toggleTraceDetail(out.trace_run_id, traceDetail, traceBtn));
+    actions.appendChild(traceBtn);
+  }
+
+  bubble.appendChild(actions);
+  if (traceDetail) bubble.appendChild(traceDetail);
+}
+
+async function toggleTraceDetail(runId, container, button) {
+  if (!container.classList.contains("hidden")) {
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+  if (container.dataset.loaded) return;
+
+  container.textContent = "Đang tải trace...";
+  button.disabled = true;
+  try {
+    const resp = await fetch(`/api/trace/${encodeURIComponent(runId)}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const node = await resp.json();
+    container.textContent = "";
+    container.appendChild(renderTraceNode(node));
+    container.dataset.loaded = "1";
+  } catch (err) {
+    container.textContent = `Không tải được trace: ${err.message}`;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderTraceNode(node) {
+  const el = document.createElement("details");
+  el.className = "trace-node";
+  el.open = true;
+
+  const summary = document.createElement("summary");
+  const duration = node.duration_seconds != null ? `${node.duration_seconds.toFixed(1)}s` : "?";
+  const tokens = node.total_tokens != null ? `${node.total_tokens} tok` : "";
+  const cost = node.total_cost != null ? `$${node.total_cost.toFixed(4)}` : "";
+  summary.textContent =
+    `[${node.run_type}] ${node.name} — ${duration}` +
+    (tokens ? ` | ${tokens}` : "") +
+    (cost ? ` | ${cost}` : "") +
+    (node.error ? " | ⚠ error" : "");
+  if (node.error) summary.classList.add("trace-node-error");
+  el.appendChild(summary);
+
+  if (node.inputs_preview || node.outputs_preview) {
+    const io = document.createElement("pre");
+    io.className = "trace-io";
+    io.textContent =
+      (node.inputs_preview ? `IN: ${node.inputs_preview}\n\n` : "") +
+      (node.outputs_preview ? `OUT: ${node.outputs_preview}` : "");
+    el.appendChild(io);
+  }
+
+  (node.children || []).forEach((child) => {
+    const childWrap = document.createElement("div");
+    childWrap.className = "trace-children";
+    childWrap.appendChild(renderTraceNode(child));
+    el.appendChild(childWrap);
+  });
+
+  return el;
 }
 
 async function downloadReport(question, out) {

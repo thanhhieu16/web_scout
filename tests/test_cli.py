@@ -149,7 +149,7 @@ class FakeGraph:
     def __init__(self, node_deltas):
         self._node_deltas = node_deltas  # list of {node_name: delta_dict}
 
-    def stream(self, state, stream_mode="updates"):
+    def stream(self, state, stream_mode="updates", **kwargs):
         if isinstance(stream_mode, (list, tuple)) and "values" in stream_mode:
             yield from self._stream_with_values(state)
         else:
@@ -218,6 +218,42 @@ def test_stream_pipeline_yields_status_then_result():
     assert result["sufficient"] is True
 
 
+def test_stream_pipeline_includes_trace_url_when_tracer_succeeds(monkeypatch):
+    import uuid
+
+    import app.main as m
+
+    run_id = uuid.uuid4()
+
+    class _FakeRun:
+        id = run_id
+
+    class _FakeTracer:
+        latest_run = _FakeRun()
+
+        def get_run_url(self):
+            return "https://smith.langchain.com/o/x/projects/p/r/abc123"
+
+    monkeypatch.setattr(m, "LangChainTracer", lambda: _FakeTracer())
+
+    events = list(m.stream_pipeline("Q?", graph=FakeGraph(DELTAS)))
+    result = events[-1][1]
+    assert result["trace_url"] == "https://smith.langchain.com/o/x/projects/p/r/abc123"
+    assert result["trace_run_id"] == str(run_id)
+
+
+def test_stream_pipeline_trace_url_is_none_without_a_traced_run():
+    from app.main import stream_pipeline
+
+    # The real LangChainTracer is used here (not mocked) — FakeGraph never fires
+    # its callbacks, so get_run_url() raises and trace_url/trace_run_id must fall
+    # back to None instead of propagating the exception.
+    events = list(stream_pipeline("Q?", graph=FakeGraph(DELTAS)))
+    result = events[-1][1]
+    assert result["trace_url"] is None
+    assert result["trace_run_id"] is None
+
+
 def test_render_report_markdown_matches_written_file(tmp_path, monkeypatch):
     from datetime import datetime as real_datetime
 
@@ -253,7 +289,7 @@ def test_run_pipeline_max_iterations_override():
             self._inner = inner
             self.seen_state = None
 
-        def stream(self, state, stream_mode="updates"):
+        def stream(self, state, stream_mode="updates", **kwargs):
             self.seen_state = state
             yield from self._inner.stream(state, stream_mode=stream_mode)
 
@@ -392,7 +428,7 @@ def test_run_pipeline_returns_usage_fields():
     from app.main import run_pipeline
 
     class FakeGraph:
-        def stream(self, state, stream_mode="updates"):
+        def stream(self, state, stream_mode="updates", **kwargs):
             delta = {"answer": "done", "total_tokens": 500, "total_cost": 0.01}
             yield ("updates", {"answer": delta})
             yield ("values", {**state, **delta})

@@ -15,7 +15,7 @@ class _LinearFakeGraph:
     def __init__(self, final_answer="Final [1]."):
         self._final_answer = final_answer
 
-    def stream(self, state, stream_mode="updates"):
+    def stream(self, state, stream_mode="updates", **kwargs):
         values = dict(state)
         steps = [
             (
@@ -41,7 +41,7 @@ class _LinearFakeGraph:
 
 
 class _RaisingGraph:
-    def stream(self, state, stream_mode="updates"):
+    def stream(self, state, stream_mode="updates", **kwargs):
         raise RuntimeError("boom")
         yield  # pragma: no cover - makes this a generator function
 
@@ -133,7 +133,7 @@ def test_chat_passes_history_from_stored_messages(isolated_db, monkeypatch):
     captured_state = {}
 
     class _CapturingGraph(_LinearFakeGraph):
-        def stream(self, state, stream_mode="updates"):
+        def stream(self, state, stream_mode="updates", **kwargs):
             captured_state["state"] = state
             yield from super().stream(state, stream_mode=stream_mode)
 
@@ -232,6 +232,63 @@ def test_report_renders_markdown():
     assert resp.headers["content-type"].startswith("text/markdown")
     assert "# WebScout Report" in resp.text
     assert "A." in resp.text
+
+
+class _FakeRun:
+    def __init__(self, name, run_type, children=None, tokens=10, cost=0.001, error=None):
+        import uuid
+        from datetime import UTC, datetime
+
+        self.id = uuid.uuid4()
+        self.name = name
+        self.run_type = run_type
+        self.start_time = datetime(2026, 1, 1, tzinfo=UTC)
+        self.end_time = datetime(2026, 1, 1, 0, 0, 5, tzinfo=UTC)
+        self.total_tokens = tokens
+        self.total_cost = cost
+        self.error = error
+        self.inputs = {"question": "Q?"}
+        self.outputs = {"answer": "A" * 3000}
+        self.child_runs = children or []
+
+
+class _FakeLangsmithClient:
+    def __init__(self, run):
+        self._run = run
+
+    def read_run(self, run_id, load_child_runs=False):
+        return self._run
+
+
+def test_get_trace_returns_simplified_nested_run(monkeypatch):
+    child = _FakeRun("web_search", "tool")
+    root = _FakeRun("research", "chain", children=[child])
+    monkeypatch.setattr(server, "Client", lambda: _FakeLangsmithClient(root))
+
+    resp = client.get(f"/api/trace/{root.id}")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "research"
+    assert body["run_type"] == "chain"
+    assert body["duration_seconds"] == 5.0
+    assert body["total_tokens"] == 10
+    assert body["total_cost"] == 0.001
+    assert len(body["outputs_preview"]) == 2001  # 2000 chars + ellipsis
+    assert len(body["children"]) == 1
+    assert body["children"][0]["name"] == "web_search"
+
+
+def test_get_trace_returns_502_on_langsmith_failure(monkeypatch):
+    class _RaisingClient:
+        def read_run(self, run_id, load_child_runs=False):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(server, "Client", lambda: _RaisingClient())
+
+    resp = client.get("/api/trace/does-not-matter")
+
+    assert resp.status_code == 502
 
 
 def test_index_page_served_at_root():

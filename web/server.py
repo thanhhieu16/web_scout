@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from langsmith import Client
 from pydantic import BaseModel, Field
 
 from app.config import MODEL_CHOICES, get_settings, override_model
@@ -12,6 +13,7 @@ from app.turn import run_chat_turn
 from web import store
 
 STATIC_DIR = Path(__file__).parent / "static"
+_TRACE_PREVIEW_CHARS = 2000
 
 
 def _db_path() -> str:
@@ -133,6 +135,42 @@ def chat(body: ChatRequest):
             yield _sse("error", {"message": str(exc)})
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _preview(value) -> str | None:
+    if value is None:
+        return None
+    text = json.dumps(value, default=str, ensure_ascii=False)
+    if len(text) > _TRACE_PREVIEW_CHARS:
+        return text[:_TRACE_PREVIEW_CHARS] + "…"
+    return text
+
+
+def _simplify_run(run) -> dict:
+    duration = None
+    if run.start_time and run.end_time:
+        duration = (run.end_time - run.start_time).total_seconds()
+    return {
+        "id": str(run.id),
+        "name": run.name,
+        "run_type": run.run_type,
+        "duration_seconds": duration,
+        "total_tokens": run.total_tokens,
+        "total_cost": float(run.total_cost) if run.total_cost is not None else None,
+        "error": run.error,
+        "inputs_preview": _preview(run.inputs),
+        "outputs_preview": _preview(run.outputs),
+        "children": [_simplify_run(c) for c in (run.child_runs or [])],
+    }
+
+
+@app.get("/api/trace/{run_id}")
+def get_trace(run_id: str):
+    try:
+        run = Client().read_run(run_id, load_child_runs=True)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"could not fetch trace: {exc}") from exc
+    return _simplify_run(run)
 
 
 @app.post("/api/report")

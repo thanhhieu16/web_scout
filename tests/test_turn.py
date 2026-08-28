@@ -10,7 +10,7 @@ class _LinearFakeGraph:
     def __init__(self, final_answer="Final [1]."):
         self._final_answer = final_answer
 
-    def stream(self, state, stream_mode="updates"):
+    def stream(self, state, stream_mode="updates", **kwargs):
         values = dict(state)
         steps = [
             ("research", {"sources": []}),
@@ -24,7 +24,7 @@ class _LinearFakeGraph:
 
 
 class _RaisingGraph:
-    def stream(self, state, stream_mode="updates"):
+    def stream(self, state, stream_mode="updates", **kwargs):
         raise RuntimeError("boom")
         yield  # pragma: no cover - makes this a generator function
 
@@ -78,7 +78,7 @@ def test_run_chat_turn_condenses_using_stored_history(db_path, monkeypatch):
     captured_state = {}
 
     class _CapturingGraph(_LinearFakeGraph):
-        def stream(self, state, stream_mode="updates"):
+        def stream(self, state, stream_mode="updates", **kwargs):
             captured_state["state"] = state
             yield from super().stream(state, stream_mode=stream_mode)
 
