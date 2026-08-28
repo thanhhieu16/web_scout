@@ -3,6 +3,7 @@ from pathlib import Path
 import httpx
 
 from app.config import FetchConfig
+from app.tools.cache import TTLCache
 from app.tools.fetch import clean_html, make_web_fetch
 
 FIXTURE = Path(__file__).parent / "fixtures" / "page.html"
@@ -104,3 +105,38 @@ def test_tool_extracts_small_page_via_mock_transport():
     assert out.startswith("FETCH_ERROR") is False
     assert "WebScout fetch cap check" in out
     assert "evil" not in out
+
+
+def test_tool_serves_repeat_url_from_cache_without_second_network_call():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(
+            200, text="<p>cached content here</p>", headers={"content-type": "text/html"}
+        )
+
+    cache = TTLCache()
+    tool = make_web_fetch(
+        FetchConfig(), transport=httpx.MockTransport(handler), resolve=_public_resolver, cache=cache
+    )
+    first = tool.invoke({"url": "https://ok.example/page"})
+    second = tool.invoke({"url": "https://ok.example/page"})
+    assert first == second
+    assert calls["n"] == 1
+
+
+def test_tool_does_not_cache_fetch_errors():
+    calls = {"n": 0}
+
+    def handler(request):
+        calls["n"] += 1
+        return httpx.Response(500, text="boom")
+
+    cache = TTLCache()
+    tool = make_web_fetch(
+        FetchConfig(), transport=httpx.MockTransport(handler), resolve=_public_resolver, cache=cache
+    )
+    tool.invoke({"url": "https://ok.example/page"})
+    tool.invoke({"url": "https://ok.example/page"})
+    assert calls["n"] == 2

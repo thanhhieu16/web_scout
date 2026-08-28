@@ -2,6 +2,7 @@ from deepagents import create_deep_agent as _create_deep_agent
 
 from app.config import REPO_ROOT, Settings, get_settings
 from app.models import get_model
+from app.tools.cache import fetch_cache, search_cache
 from app.tools.fetch import make_web_fetch
 from app.tools.search_tool import make_web_search
 
@@ -45,7 +46,10 @@ def build_research_agent(settings: Settings | None = None, usage=None):
     model = get_model("researcher", s)
     kwargs = dict(
         model=model,
-        tools=[make_web_search(s, usage=usage), make_web_fetch(s.fetch)],
+        tools=[
+            make_web_search(s, usage=usage, cache=search_cache),
+            make_web_fetch(s.fetch, cache=fetch_cache),
+        ],
         system_prompt=RESEARCH_SYSTEM_PROMPT,
     )
     if s.skills_enabled and (REPO_ROOT / "skills").is_dir():

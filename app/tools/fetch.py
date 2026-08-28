@@ -70,10 +70,16 @@ def make_web_fetch(
     cfg: FetchConfig,
     transport: httpx.BaseTransport | None = None,
     resolve=default_resolve,
+    cache=None,
 ):
     @tool
     def web_fetch(url: str) -> str:
         """Fetch a web page and return its readable main text."""
+        if cache is not None:
+            cached = cache.get(url)
+            if cached is not None:
+                return cached
+
         too_large = (
             f"FETCH_ERROR: response exceeds max_download_bytes "
             f"({cfg.max_download_bytes})"
@@ -121,6 +127,9 @@ def make_web_fetch(
         # (or trafilatura) must propagate as a real exception, not get
         # reported to the agent as a routine FETCH_ERROR.
         assert text is not None
-        return clean_html(text, cfg.max_chars)
+        result = clean_html(text, cfg.max_chars)
+        if cache is not None:
+            cache.set(url, result)
+        return result
 
     return web_fetch
