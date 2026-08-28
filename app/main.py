@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -56,8 +57,10 @@ def run_question(question: str, agent=None, settings=None, usage=None) -> dict:
 def stream_pipeline(question: str, graph=None, max_iterations: int | None = None):
     """Drive the LangGraph pipeline, yielding progress then the final result.
 
-    Yields ("status", node_name) once per completed node, in order, then yields
-    exactly one ("result", out_dict) as the last item.
+    Yields ("status", node_name) once per completed node, ("tool", {"tool":
+    name, "input": preview}) zero or more times per tool call inside the
+    research node, in order, then yields exactly one ("result", out_dict) as
+    the last item.
     """
     if graph is None:
         require_openrouter_key()
@@ -66,21 +69,27 @@ def stream_pipeline(question: str, graph=None, max_iterations: int | None = None
     mi = max_iterations if max_iterations is not None else s.max_iterations
     state = {"question": question, "iteration": 0, "max_iterations": mi}
     final = dict(state)
-    tracer = LangChainTracer()
+    tracing_enabled = os.environ.get("LANGSMITH_TRACING", "").lower() == "true"
+    tracer = LangChainTracer() if tracing_enabled else None
+    callbacks = [tracer] if tracer else []
     for mode, chunk in g.stream(
-        state, stream_mode=["updates", "values"], config={"callbacks": [tracer]}
+        state, stream_mode=["updates", "values", "custom"], config={"callbacks": callbacks}
     ):
         if mode == "updates":
             for node in chunk:
                 yield ("status", node)
+        elif mode == "custom":
+            yield ("tool", chunk)
         else:
             final = chunk
-    try:
-        trace_url = tracer.get_run_url()
-        trace_run_id = str(tracer.latest_run.id) if tracer.latest_run else None
-    except Exception:
-        trace_url = None
-        trace_run_id = None
+    trace_url = None
+    trace_run_id = None
+    if tracer is not None:
+        try:
+            trace_url = tracer.get_run_url()
+            trace_run_id = str(tracer.latest_run.id) if tracer.latest_run else None
+        except Exception:
+            pass
     yield (
         "result",
         {

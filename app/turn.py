@@ -16,10 +16,11 @@ def run_chat_turn(
     """Run one conversation turn, yielding progress then the final result.
 
     Mirrors `stream_pipeline`'s contract: yields ("status", {"node": name})
-    zero or more times, then exactly one ("result", out_dict) or one
-    ("error", {"message": str}) as the last item. On "result", the turn is
-    persisted via `store.append_message` before it's yielded. On "error",
-    nothing is persisted — a failed turn must never appear in history.
+    and ("tool", {"tool": name, "input": preview}) zero or more times, then
+    exactly one ("result", out_dict) or one ("error", {"message": str}) as
+    the last item. On "result", the turn is persisted via
+    `store.append_message` before it's yielded. On "error", nothing is
+    persisted — a failed turn must never appear in history.
 
     Raises KeyError if `conversation_id` doesn't exist in `db_path` (only
     once the generator is actually iterated, since this is a generator
@@ -40,6 +41,8 @@ def run_chat_turn(
         ):
             if kind == "status":
                 yield ("status", {"node": payload})
+            elif kind == "tool":
+                yield ("tool", payload)
             else:
                 try:
                     store.append_message(db_path, conversation_id, question, payload)

@@ -40,6 +40,14 @@ class _LinearFakeGraph:
             yield ("values", dict(values))
 
 
+class _ToolEventGraph(_LinearFakeGraph):
+    """Emits one custom tool event before the research node's update."""
+
+    def stream(self, state, stream_mode="updates", **kwargs):
+        yield ("custom", {"tool": "web_search", "input": "gia vang hom nay"})
+        yield from super().stream(state, stream_mode=stream_mode)
+
+
 class _RaisingGraph:
     def stream(self, state, stream_mode="updates", **kwargs):
         raise RuntimeError("boom")
@@ -105,6 +113,16 @@ def test_chat_streams_status_then_result(isolated_db, monkeypatch):
     assert kinds == ["status", "status", "status", "result"]
     assert [d["node"] for e, d in events[:3]] == ["research", "verify", "answer"]
     assert events[-1][1]["answer"] == "Final [1]."
+
+
+def test_chat_streams_tool_events(isolated_db, monkeypatch):
+    conv_id = store.create_conversation(isolated_db)
+    monkeypatch.setattr(turn, "build_graph", lambda: _ToolEventGraph())
+    monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
+    resp = client.post("/api/chat", json={"conversation_id": conv_id, "question": "Q?"})
+    assert resp.status_code == 200
+    events = _parse_sse(resp.text)
+    assert events[0] == ("tool", {"tool": "web_search", "input": "gia vang hom nay"})
 
 
 def test_chat_emits_error_event_on_failure(isolated_db, monkeypatch):

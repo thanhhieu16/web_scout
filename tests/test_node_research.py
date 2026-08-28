@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from app.config import Settings
 from app.nodes.research import build_research_input, make_research_node
+from app.tools.events import ToolEventCallback
 
 
 class FakeAgent:
@@ -106,6 +107,50 @@ def test_missing_findings_block_becomes_weak_claim(capsys):
     delta = make_research_node(agent, s)({"question": "Q?", "iteration": 0})
     assert any("no ## FINDINGS block" in w for w in delta["weak_claims"])
     assert "[warn]" in capsys.readouterr().err
+
+
+def test_node_emits_tool_events_via_outer_graph_custom_stream():
+    """Regression test for a real bug: the research agent is itself a
+    compiled LangGraph graph. A ToolEventCallback that lazily resolves
+    get_stream_writer() from *inside* on_tool_start (fired during the
+    nested agent.invoke() call) silently resolves to the inner graph's own
+    Pregel runtime and never reaches the outer stream. The fix is for the
+    node to resolve the writer itself, before calling the agent, and hand
+    it to the callback — this exercises that the node does so correctly."""
+    from langgraph.graph import END, START, StateGraph
+
+    from app.state import ResearchState
+
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+
+    class FakeAgent:
+        def invoke(self, payload, config=None):
+            callback = config["callbacks"][0]
+            assert isinstance(callback, ToolEventCallback)
+            callback.on_tool_start(
+                {"name": "web_search"},
+                "{'query': 'q'}",
+                run_id="r1",
+                inputs={"query": "q"},
+            )
+            return {"messages": [_msg(CONTENT, [])]}
+
+    graph = StateGraph(ResearchState)
+    graph.add_node("research", make_research_node(FakeAgent(), s))
+    graph.add_edge(START, "research")
+    graph.add_edge("research", END)
+    compiled = graph.compile()
+
+    events = list(
+        compiled.stream(
+            {"question": "Q?", "iteration": 0, "gaps": [], "weak_claims": []},
+            stream_mode=["updates", "custom"],
+        )
+    )
+    custom = [chunk for mode, chunk in events if mode == "custom"]
+    assert custom == [
+        {"run_id": "r1", "status": "start", "tool": "web_search", "input": "q"}
+    ]
 
 
 def test_unparseable_findings_line_becomes_weak_claim(capsys):

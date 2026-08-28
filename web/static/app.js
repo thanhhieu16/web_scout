@@ -516,6 +516,55 @@ function addTraceStep(trace, node) {
   step.appendChild(body);
 
   stepsEl.appendChild(step);
+  return step;
+}
+
+const TOOL_ICONS = { web_search: "🔍", web_fetch: "🌐" };
+
+// Tool events arrive WHILE the research node is running — before its
+// "status" event, which only fires once the node has fully returned. So the
+// first tool event of an iteration must create the research step itself;
+// the status event that follows must not create a duplicate for it.
+function ensureResearchStep(trace) {
+  const active = trace.querySelector(".trace-step.active");
+  if (active && active.dataset.pretool === "1") return active;
+  const step = addTraceStep(trace, "research");
+  step.dataset.pretool = "1";
+  return step;
+}
+
+function addToolLine(trace, payload) {
+  const step = ensureResearchStep(trace);
+  const body = step.querySelector(".trace-step-body");
+  if (!body) return;
+  const line = document.createElement("span");
+  line.className = "trace-tool-line";
+  line.dataset.runId = payload.run_id;
+  const icon = TOOL_ICONS[payload.tool] || "⚙️";
+  const status = document.createElement("span");
+  status.className = "trace-tool-status";
+  status.textContent = "…";
+  line.textContent = `${icon} ${payload.tool}: ${payload.input} `;
+  line.appendChild(status);
+  body.appendChild(line);
+}
+
+// A tool call's "done"/"error" event carries the same run_id its "start"
+// event did — update that line in place instead of appending a new one.
+function updateToolLineStatus(trace, payload) {
+  const line = trace.querySelector(
+    `.trace-tool-line[data-run-id="${CSS.escape(String(payload.run_id))}"]`
+  );
+  if (!line) return;
+  const status = line.querySelector(".trace-tool-status");
+  if (!status) return;
+  if (payload.status === "error") {
+    status.textContent = "✗";
+    line.classList.add("trace-tool-error");
+    if (payload.error) line.title = payload.error;
+  } else {
+    status.textContent = "✓";
+  }
 }
 
 function settleTrace(trace) {
@@ -588,8 +637,16 @@ async function sendQuestion(question) {
           const stale = activeConversationId !== turnConversationId;
           if (event === "status") {
             if (!stale) {
-              addTraceStep(trace, data.node);
+              const active = trace.querySelector(".trace-step.active");
+              const isConfirmingPretoolResearch =
+                active && active.dataset.pretool === "1" && data.node === "research";
+              if (!isConfirmingPretoolResearch) addTraceStep(trace, data.node);
               status.textContent = STATUS_LABELS[data.node] || `Đang ${data.node}...`;
+            }
+          } else if (event === "tool") {
+            if (!stale) {
+              if (data.status === "start") addToolLine(trace, data);
+              else updateToolLineStatus(trace, data);
             }
           } else if (event === "result") {
             if (!stale) {

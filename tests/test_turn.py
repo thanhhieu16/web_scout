@@ -23,6 +23,14 @@ class _LinearFakeGraph:
             yield ("values", dict(values))
 
 
+class _ToolEventGraph(_LinearFakeGraph):
+    """Emits one custom tool event before the research node's update."""
+
+    def stream(self, state, stream_mode="updates", **kwargs):
+        yield ("custom", {"tool": "web_search", "input": "gia vang hom nay"})
+        yield from super().stream(state, stream_mode=stream_mode)
+
+
 class _RaisingGraph:
     def stream(self, state, stream_mode="updates", **kwargs):
         raise RuntimeError("boom")
@@ -50,6 +58,17 @@ def test_run_chat_turn_streams_status_then_persists_result(db_path, monkeypatch)
     stored = store.get_conversation(db_path, conv_id)
     assert stored["messages"][0]["question"] == "Q?"
     assert stored["messages"][0]["out"]["answer"] == "Final [1]."
+
+
+def test_run_chat_turn_passes_through_tool_events(db_path, monkeypatch):
+    conv_id = store.create_conversation(db_path)
+    monkeypatch.setattr(turn, "build_graph", lambda: _ToolEventGraph())
+    monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
+
+    events = list(turn.run_chat_turn(db_path, conv_id, "Q?"))
+
+    assert events[0] == ("tool", {"tool": "web_search", "input": "gia vang hom nay"})
+    assert events[-1][1]["answer"] == "Final [1]."
 
 
 def test_run_chat_turn_yields_error_without_persisting(db_path, monkeypatch):

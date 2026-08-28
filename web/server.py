@@ -127,6 +127,8 @@ def chat(body: ChatRequest):
             ):
                 if kind == "status":
                     yield _sse("status", {"node": payload["node"]})
+                elif kind == "tool":
+                    yield _sse("tool", payload)
                 elif kind == "result":
                     yield _sse("result", payload)
                 else:

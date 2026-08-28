@@ -13,6 +13,22 @@ from app.nodes.parsing import (
     sum_usage,
 )
 from app.state import ResearchState
+from app.tools.events import ToolEventCallback
+
+
+def _resolve_tool_event_writer():
+    """Resolve the outer graph's stream writer, if we're running inside one.
+
+    Must be called from the research node's own body, before invoking the
+    (itself compiled-graph) research agent — see ToolEventCallback's
+    docstring for why a lazy resolution from inside the agent call fails.
+    """
+    from langgraph.config import get_stream_writer
+
+    try:
+        return get_stream_writer()
+    except RuntimeError:
+        return None
 
 
 def build_research_input(state: ResearchState) -> str:
@@ -44,10 +60,14 @@ def make_research_node(
 ) -> Callable[[ResearchState], dict]:
     def research(state: ResearchState) -> dict:
         prompt = build_research_input(state)
+        writer = _resolve_tool_event_writer()
         result = call_with_backoff(
             agent.invoke,
             {"messages": [{"role": "user", "content": prompt}]},
-            config={"recursion_limit": 50},
+            config={
+                "recursion_limit": 50,
+                "callbacks": [ToolEventCallback(writer=writer)],
+            },
         )
         messages = result["messages"]
         message = messages[-1]

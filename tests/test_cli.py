@@ -146,8 +146,9 @@ class FakeGraph:
     state — computed here by applying ResearchState's own reducers, the same way
     LangGraph does internally."""
 
-    def __init__(self, node_deltas):
+    def __init__(self, node_deltas, custom_events=None):
         self._node_deltas = node_deltas  # list of {node_name: delta_dict}
+        self._custom_events = custom_events or []  # emitted during the research node
 
     def stream(self, state, stream_mode="updates", **kwargs):
         if isinstance(stream_mode, (list, tuple)) and "values" in stream_mode:
@@ -160,6 +161,9 @@ class FakeGraph:
         values = dict(state)
         for update in self._node_deltas:
             for node, delta in update.items():
+                if node == "research":
+                    for ev in self._custom_events:
+                        yield ("custom", ev)
                 yield ("updates", {node: delta})
                 for key, val in delta.items():
                     reducer = reducers.get(key)
@@ -218,11 +222,27 @@ def test_stream_pipeline_yields_status_then_result():
     assert result["sufficient"] is True
 
 
+def test_stream_pipeline_yields_tool_events_from_custom_stream_mode():
+    from app.main import stream_pipeline
+
+    tool_events = [
+        {"tool": "web_search", "input": "gia vang hom nay"},
+        {"tool": "web_fetch", "input": "https://sjc.com.vn/gia-vang"},
+    ]
+    events = list(
+        stream_pipeline("Q?", graph=FakeGraph(DELTAS, custom_events=tool_events))
+    )
+    kinds = [kind for kind, _ in events]
+    assert kinds == ["tool", "tool", "status", "status", "status", "result"]
+    assert [payload for kind, payload in events[:2]] == tool_events
+
+
 def test_stream_pipeline_includes_trace_url_when_tracer_succeeds(monkeypatch):
     import uuid
 
     import app.main as m
 
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
     run_id = uuid.uuid4()
 
     class _FakeRun:
