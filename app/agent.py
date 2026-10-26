@@ -36,12 +36,16 @@ Integrity rules:
 Output contract — end EVERY final reply with exactly this block:
 
 ## FINDINGS
-- [S1] <one factual claim> | confidence: high|medium|low
-- [S1][S2] <a claim confirmed by two sources> | confidence: high|medium|low
+- [S1] <one factual claim> | confidence: high|medium|low | quote: "<exact words from S1>"
+- [S1][S2] <claim backed by two sources> | confidence: high|medium|low | quote: "<exact words>"
 
 Where [Sn] is the source ID the tool printed next to that source's URL.
-Cite EVERY source that supports the claim, not just the first. One line per
-claim. No prose inside the block."""
+Cite EVERY source that supports the claim, not just the first. The quote is
+a short passage (one sentence is enough) copied word for word from the text a
+tool returned for one of the cited sources — never paraphrase it, translate
+it or write it yourself; quotes are checked against the source text, and a
+claim whose quote is not found there is downgraded. One line per claim. No
+prose inside the block."""
 
 # Attempts per researcher model call when the provider rate-limits. Applied per
 # call (inside the agent loop) so a 429 retries one step, not the whole run.

@@ -10,9 +10,48 @@ ANSWER_SYSTEM_PROMPT = """You are WebScout's answer writer.
 Write the final answer to the question using ONLY the verified findings and
 sources provided. Requirements:
 - Reply in the same language as the question.
-- Cite claims inline as [n] where n matches the numbered source list given.
+- Cite claims inline as [n], using the source numbers listed after each
+  finding; they match the numbered source list given.
 - Distinguish fact from inference. State uncertainty when present.
+- Use findings listed under "Uncertain findings" only with explicit hedging,
+  or leave them out.
 - Do not add unsupported claims. Do not perform new research."""
+
+
+def _finding_line(finding: dict, number_for: dict[str, int]) -> str | None:
+    """Render one finding with its sources as [n] numbers, or None when no
+    cited URL is in the source list (every ref unresolved) — such a claim has
+    nothing to cite and must not reach the answer."""
+    numbers = sorted(
+        {number_for[u] for u in finding.get("source_urls") or [] if u in number_for}
+    )
+    if not numbers:
+        return None
+    line = (
+        f"- ({finding.get('confidence')}) {finding.get('claim')} "
+        + "".join(f"[{n}]" for n in numbers)
+    )
+    if finding.get("grounded") and finding.get("quote"):
+        line += f'\n  quote: "{finding["quote"]}"'
+    return line
+
+
+def render_findings(findings: list, sources: list) -> str:
+    number_for = {s.get("url"): i for i, s in enumerate(sources, 1)}
+    solid: list[str] = []
+    uncertain: list[str] = []
+    for finding in findings:
+        line = _finding_line(finding, number_for)
+        if line is None:
+            continue
+        (uncertain if finding.get("confidence") == "low" else solid).append(line)
+    text = "Findings:\n" + ("\n".join(solid) or "(none)")
+    if uncertain:
+        text += (
+            "\n\nUncertain findings (low confidence — hedge or omit):\n"
+            + "\n".join(uncertain)
+        )
+    return text
 
 
 def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState], dict]:
@@ -27,12 +66,7 @@ def make_answer_node(settings: Settings, model=None) -> Callable[[ResearchState]
         ]
         sections = [
             f"Question:\n{state.get('question', '')}",
-            "Findings:\n"
-            + "\n".join(
-                f"- ({f.get('confidence')}) {f.get('claim')} "
-                f"[refs: {', '.join(f.get('source_urls') or [])}]"
-                for f in (state.get("findings") or [])
-            ),
+            render_findings(state.get("findings") or [], state.get("sources") or []),
             "Numbered sources:\n" + ("\n".join(lines) or "(none)"),
         ]
         exhausted = (

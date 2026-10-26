@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from typing import Any, NamedTuple
 
 from app.schemas import Finding, Source
@@ -6,9 +7,10 @@ from app.tools.search import count_web_searches
 
 _LINE_RE = re.compile(
     r"^-\s*(?P<refs>(?:\[S\d+\][\s,]*)+)\s*(?P<claim>.+?)\s*\|\s*confidence:\s*"
-    r"(?P<conf>high|medium|low)\s*$",
+    r"(?P<conf>high|medium|low)(?:\s*\|\s*quote:\s*(?P<quote>.+?))?\s*$",
     re.IGNORECASE,
 )
+_QUOTE_MARKS = "\"'“”‘’«»"
 _REF_RE = re.compile(r"S\d+", re.IGNORECASE)
 _BLOCK_RE = re.compile(r"^##\s*FINDINGS\s*$", re.IGNORECASE | re.MULTILINE)
 # A line that opens like a finding, or carries a confidence marker, but still fails
@@ -24,16 +26,19 @@ class FindingsParse(NamedTuple):
     narrative: str
     dropped: list[str]
     block_found: bool
+    # Parallel to `findings`; "" where the line carried no `| quote:` part.
+    quotes: list[str]
 
 
 def parse_findings_block(text: str) -> FindingsParse:
     match = _BLOCK_RE.search(text)
     if not match:
-        return FindingsParse([], [], text, [], False)
+        return FindingsParse([], [], text, [], False, [])
     narrative = text[: match.start()].rstrip()
     findings: list[Finding] = []
     refs: list[list[str]] = []
     dropped: list[str] = []
+    quotes: list[str] = []
     for raw in text[match.end() :].splitlines():
         line = raw.strip()
         if not line:
@@ -51,7 +56,8 @@ def parse_findings_block(text: str) -> FindingsParse:
             )
         )
         refs.append([r.upper() for r in _REF_RE.findall(m.group("refs"))])
-    return FindingsParse(findings, refs, narrative, dropped, True)
+        quotes.append((m.group("quote") or "").strip().strip(_QUOTE_MARKS).strip())
+    return FindingsParse(findings, refs, narrative, dropped, True, quotes)
 
 
 def map_refs_to_urls(
@@ -281,3 +287,78 @@ def find_unknown_refs(findings: list[Finding], ref_map: dict[str, str]) -> list[
             if resolvable and url not in known and url not in unknown:
                 unknown.append(url)
     return unknown
+
+
+# Fewer words than this and a "quote" matches almost any page by accident.
+_MIN_QUOTE_WORDS = 4
+_ELLIPSIS_RE = re.compile(r"\.\.\.|…")
+
+
+def _normalize_for_match(text: str) -> str:
+    """Casefold and reduce to words, so a quote survives the punctuation,
+    quote-mark and whitespace drift between extracted page text and what the
+    model copies out of it."""
+    text = unicodedata.normalize("NFKC", text).casefold()
+    return " ".join(re.sub(r"[\W_]+", " ", text).split())
+
+
+def collect_source_texts(messages) -> dict[str, str]:
+    """Full text the agent actually saw per URL: fetched page bodies plus
+    web_search excerpts. `build_sources` keeps only 500-char excerpts, too short
+    to check a quote against."""
+    texts: dict[str, list[str]] = {}
+    for source, _ in _search_tool_entries(messages):
+        texts.setdefault(source["url"], []).append(source["excerpt"])
+    pending: dict[str, str] = {}
+    for message in messages:
+        for call in getattr(message, "tool_calls", None) or []:
+            if call.get("name") == "web_fetch":
+                url = (call.get("args") or {}).get("url")
+                if url:
+                    pending[str(call.get("id"))] = url
+        if getattr(message, "type", "") != "tool":
+            continue
+        url = pending.pop(str(getattr(message, "tool_call_id", "")), None)
+        content = str(getattr(message, "content", ""))
+        if url is None or content.startswith("FETCH_ERROR"):
+            continue
+        header = _FETCH_HEADER_RE.match(content)
+        texts.setdefault(url, []).append(content[header.end() :] if header else content)
+    return {url: "\n".join(parts) for url, parts in texts.items()}
+
+
+def _quote_in(quote: str, text: str) -> bool:
+    haystack = _normalize_for_match(text)
+    fragments = [_normalize_for_match(f) for f in _ELLIPSIS_RE.split(quote)]
+    fragments = [f for f in fragments if f]
+    return bool(fragments) and all(f in haystack for f in fragments)
+
+
+def ground_findings(
+    findings: list[Finding], quotes: list[str], texts: dict[str, str]
+) -> tuple[list[Finding], list[str]]:
+    """Check each finding's quote against the text of the sources it cites.
+
+    - quote found in a cited source: `grounded=True`, confidence unchanged.
+    - no usable quote: `grounded=False`; "high" drops to "medium", since
+      nothing ties the claim to its source text.
+    - quote given but in none of the cited sources (paraphrased, misattributed
+      or invented): `grounded=False`, confidence drops to "low", and a weak
+      claim is reported.
+    """
+    out: list[Finding] = []
+    weak: list[str] = []
+    for finding, quote in zip(findings, quotes, strict=True):
+        grounded_finding = Finding(**finding, quote=quote, grounded=False)
+        if len(_normalize_for_match(quote).split()) < _MIN_QUOTE_WORDS:
+            if grounded_finding["confidence"] == "high":
+                grounded_finding["confidence"] = "medium"
+        elif any(
+            _quote_in(quote, texts.get(url, "")) for url in finding.get("source_urls", [])
+        ):
+            grounded_finding["grounded"] = True
+        else:
+            grounded_finding["confidence"] = "low"
+            weak.append(f"quote not found in cited source(s): {finding['claim']}")
+        out.append(grounded_finding)
+    return out, weak

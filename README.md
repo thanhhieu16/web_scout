@@ -50,7 +50,7 @@ loops — which keeps the cost of a run proportional to the research it actually
 ### Evidence flow
 
 1. The research agent replies in prose and ends every turn with a `## FINDINGS` block:
-   `- [S1] claim | confidence: high`.
+   `- [S1] claim | confidence: high | quote: "exact words from S1"`.
 2. `web_search` and `web_fetch` label every URL they return with a stable source ID (`[S3] url | title`,
    or a `[S3] url` header on a fetched page). One URL keeps one ID for the whole turn, and the agent cites
    by copying the ID — it never numbers sources itself.
@@ -58,6 +58,13 @@ loops — which keeps the cost of a run proportional to the research it actually
    annotations first, then `web_search` result blocks, then successfully fetched pages. Each `Sn` ref is
    resolved through the IDs the tools printed to a real URL. Anything unresolvable is reported as a **weak claim** rather
    than silently dropped.
+4. Each finding's quote is **checked by code** against the text of the sources it cites (case,
+   punctuation and `...` elisions tolerated). A quote that is found marks the finding grounded and
+   becomes that source's excerpt. With no quote, `high` confidence is capped at `medium`. A quote that
+   isn't in any cited source drops the finding to `low` and is reported as a weak claim.
+5. The answer writer gets each finding with its source numbers already resolved (`claim [1][3]`).
+   Findings with no resolvable source are left out, and `low`-confidence findings are listed
+   separately, to be hedged or omitted.
 
 ## Requirements
 
@@ -201,14 +208,16 @@ research agent as a module attribute so it can be monkeypatched.
 ## Evals
 
 Evals run through LangSmith (`LANGSMITH_API_KEY` required). They upload `evals/dataset.json` (24 examples),
-execute the full graph per example, and score **correctness**, **citation support**, and metrics
-(sources count, search calls, latency, tokens).
+execute the full graph per example, and score **correctness**, **citation support**, code-checked
+citation health (**refs_resolved**, **findings_grounded**, **answer_refs_valid** — no judge model,
+see `grounding_evaluator`), and metrics (sources count, search calls, latency, tokens).
 
 ```powershell
 uv run python -m evals.run_evals                       # full dataset
 uv run python -m evals.run_evals --limit 2             # first N examples
 uv run python -m evals.run_evals --experiment-prefix demo
 uv run python -m evals.summarize                       # A/B table across arms
+uv run python -m evals.summarize baseline pr2          # compare any experiment prefixes
 ```
 
 Results appear as an experiment in your LangSmith project. `evals.summarize` aggregates the

@@ -50,7 +50,7 @@ không vòng lặp nội bộ — nhờ vậy chi phí một lần chạy tỉ l
 ### Luồng bằng chứng
 
 1. Research agent trả lời bằng văn xuôi và luôn kết thúc mỗi lượt bằng một block `## FINDINGS`:
-   `- [S1] claim | confidence: high`.
+   `- [S1] claim | confidence: high | quote: "nguyên văn từ S1"`.
 2. `web_search` và `web_fetch` gắn cho mỗi URL trả về một ID nguồn cố định (`[S3] url | title`, hoặc
    header `[S3] url` ở đầu trang đã fetch). Một URL giữ nguyên một ID trong suốt lượt, và agent trích
    dẫn bằng cách chép lại ID đó — không tự đánh số nguồn.
@@ -58,6 +58,13 @@ không vòng lặp nội bộ — nhờ vậy chi phí một lần chạy tỉ l
    tiên annotation trích dẫn URL trước, rồi đến các block kết quả `web_search`, rồi đến các trang
    `web_fetch` thành công. Mỗi tham chiếu `Sn` được resolve qua ID mà tool đã in ra về một URL thật. Cái nào không resolve được sẽ báo là **weak
    claim** thay vì âm thầm bỏ qua.
+4. Câu trích (`quote`) của mỗi finding được **code kiểm tra** trong nội dung các nguồn mà finding đó
+   trích (bỏ qua khác biệt hoa/thường, dấu câu và đoạn lược `...`). Tìm thấy thì finding được đánh
+   dấu grounded và câu trích trở thành excerpt của nguồn đó. Không có quote thì confidence `high` bị
+   hạ xuống `medium`. Có quote nhưng không có trong nguồn nào được trích thì finding bị hạ xuống
+   `low` và báo là weak claim.
+5. Node answer nhận từng finding với số nguồn đã được resolve sẵn (`claim [1][3]`). Finding không có
+   nguồn hợp lệ bị loại, còn finding `low` được tách riêng để viết kèm mức độ chắc chắn hoặc bỏ qua.
 
 ## Yêu cầu
 
@@ -199,14 +206,16 @@ agent như một module attribute nên có thể monkeypatch.
 ## Evals
 
 Evals chạy qua LangSmith (cần `LANGSMITH_API_KEY`). Chúng upload `evals/dataset.json` (24 example),
-chạy full graph cho từng example, và chấm điểm **correctness**, **citation support**, cùng các
-metric (số nguồn, số lượt search, latency, token).
+chạy full graph cho từng example, và chấm điểm **correctness**, **citation support**, độ khỏe trích
+dẫn kiểm tra bằng code (**refs_resolved**, **findings_grounded**, **answer_refs_valid** — không cần
+judge model, xem `grounding_evaluator`), cùng các metric (số nguồn, số lượt search, latency, token).
 
 ```powershell
 uv run python -m evals.run_evals                       # toàn bộ dataset
 uv run python -m evals.run_evals --limit 2             # N example đầu tiên
 uv run python -m evals.run_evals --experiment-prefix demo
 uv run python -m evals.summarize                       # bảng A/B giữa các arm
+uv run python -m evals.summarize baseline pr2          # so sánh bất kỳ experiment prefix nào
 ```
 
 Kết quả xuất hiện như một experiment trong LangSmith project của bạn. `evals.summarize` gộp các

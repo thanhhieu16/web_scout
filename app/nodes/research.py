@@ -5,8 +5,10 @@ from collections.abc import Callable
 from app.config import Settings
 from app.nodes.parsing import (
     build_sources,
+    collect_source_texts,
     count_total_searches,
     find_unknown_refs,
+    ground_findings,
     map_refs_to_urls,
     parse_findings_block,
     sum_usage,
@@ -49,9 +51,28 @@ def build_research_input(state: ResearchState) -> str:
         "Reminder: you MUST invoke the web_search tool at least once before "
         "fetching anything; then end your final reply with the ## FINDINGS "
         "block exactly as your instructions specify (one '- [Sn] claim | "
-        "confidence: ...' line per finding)."
+        "confidence: ... | quote: \"...\"' line per finding)."
     )
     return "\n\n".join(parts)
+
+
+def _excerpts_from_quotes(sources: list, findings: list) -> list:
+    """Use a grounded quote as its source's excerpt.
+
+    A fetched page's default excerpt is its first 500 characters — usually
+    navigation or a header — and the excerpt is all the answer writer (and
+    the citation_support eval) ever see of a source. The quote is the passage
+    that actually supports a claim.
+    """
+    quote_for: dict[str, str] = {}
+    for finding in findings:
+        if finding.get("grounded"):
+            for url in finding.get("source_urls", []):
+                quote_for.setdefault(url, finding["quote"])
+    return [
+        dict(source, excerpt=quote_for[source["url"]]) if source["url"] in quote_for else source
+        for source in sources
+    ]
 
 
 def make_research_node(
@@ -75,6 +96,10 @@ def make_research_node(
         parsed = parse_findings_block(str(message.content))
         sources, ref_map = build_sources(messages)
         findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_map)
+        findings, ungrounded = ground_findings(
+            findings, parsed.quotes, collect_source_texts(messages)
+        )
+        sources = _excerpts_from_quotes(sources, findings)
         unknown = find_unknown_refs(findings, ref_map)
         unknown_set = set(unknown)
         seen_weak: set[str] = set()
@@ -95,6 +120,8 @@ def make_research_node(
         for line in parsed.dropped:
             _note(f"unparseable FINDINGS line: {line}")
             print(f"[warn] unparseable FINDINGS line: {line}", file=sys.stderr, flush=True)
+        for item in ungrounded:
+            _note(item)
         for finding in findings:
             for u in finding.get("source_urls", []):
                 if u in unknown_set and u.startswith("unresolved:"):

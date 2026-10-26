@@ -120,3 +120,41 @@ def metrics_evaluator(run, example) -> EvaluationResults:
             for k, v in values.items()
         ]
     }
+
+
+def grounding_evaluator(run, example) -> EvaluationResults:
+    """Citation health checked by code, no judge model — cheap enough to run on
+    every example and stable across judge-model swaps.
+
+    - refs_resolved: share of findings whose every [Sn] ref resolved to a URL.
+    - findings_grounded: share of findings whose quote was found in a cited
+      source (`grounded`, set by app.nodes.parsing.ground_findings).
+    - answer_refs_valid: share of distinct [n] markers in the answer that point
+      into the source list (0 when the answer cites nothing).
+    A key is omitted when its denominator is empty, so it doesn't drag an
+    average down with a meaningless 0.
+    """
+    outputs = run.outputs or {}
+    findings = outputs.get("findings") or []
+    sources = outputs.get("sources") or []
+    refs = {int(n) for n in _CITE_RE.findall(outputs.get("answer", ""))}
+    values: dict[str, float] = {
+        "answer_refs_valid": (
+            sum(1 for n in refs if 1 <= n <= len(sources)) / len(refs) if refs else 0.0
+        )
+    }
+    if findings:
+        values["refs_resolved"] = sum(
+            1
+            for f in findings
+            if f.get("source_urls")
+            and not any(u.startswith("unresolved:") for u in f["source_urls"])
+        ) / len(findings)
+        values["findings_grounded"] = sum(1 for f in findings if f.get("grounded")) / len(
+            findings
+        )
+    return {
+        "results": [
+            EvaluationResult(key=k, score=float(v), value=float(v)) for k, v in values.items()
+        ]
+    }

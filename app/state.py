@@ -39,6 +39,9 @@ def merge_findings(prior: list, new: list) -> list:
             if url not in urls:
                 urls.append(url)
         existing["source_urls"] = urls
+        if finding.get("grounded") and not existing.get("grounded"):
+            existing["quote"] = finding.get("quote", "")
+            existing["grounded"] = True
         old = _CONFIDENCE_ORDER.get(existing.get("confidence", "low"), 0)
         incoming = _CONFIDENCE_ORDER.get(finding.get("confidence", "low"), 0)
         if incoming < old:
