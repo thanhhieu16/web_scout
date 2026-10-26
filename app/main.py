@@ -39,9 +39,9 @@ def run_question(question: str, agent=None, settings=None, usage=None) -> dict:
     messages = result["messages"]
     message = messages[-1]
     parsed = parse_findings_block(str(message.content))
-    sources, ref_order = build_sources(messages)
-    findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
-    unknown = find_unknown_refs(findings, ref_order)
+    sources, ref_map = build_sources(messages)
+    findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_map)
+    unknown = find_unknown_refs(findings, ref_map)
     _, _, tool_searches = usage.drain()
     searches = count_total_searches(messages) + tool_searches
     if unknown:

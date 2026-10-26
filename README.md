@@ -51,10 +51,12 @@ loops — which keeps the cost of a run proportional to the research it actually
 
 1. The research agent replies in prose and ends every turn with a `## FINDINGS` block:
    `- [S1] claim | confidence: high`.
-2. The source list is **rebuilt from the message history**, never taken from the model: URL citation
-   annotations first, then `[SRC]` blocks parsed out of `web_search` results, then successfully fetched
-   pages. That order defines the `[Sn]` numbering.
-3. Each `Sn` ref is resolved to a real URL. Anything unresolvable is reported as a **weak claim** rather
+2. `web_search` and `web_fetch` label every URL they return with a stable source ID (`[S3] url | title`,
+   or a `[S3] url` header on a fetched page). One URL keeps one ID for the whole turn, and the agent cites
+   by copying the ID — it never numbers sources itself.
+3. The source list is **rebuilt from the message history**, never taken from the model: URL citation
+   annotations first, then `web_search` result blocks, then successfully fetched pages. Each `Sn` ref is
+   resolved through the IDs the tools printed to a real URL. Anything unresolvable is reported as a **weak claim** rather
    than silently dropped.
 
 ## Requirements

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from langsmith import Client
 from pydantic import BaseModel, Field
 
-from app.config import MODEL_CHOICES, get_settings, override_model
+from app.config import MODEL_CHOICES, get_settings, with_model
 from app.main import render_report_markdown
 from app.turn import run_chat_turn
 from web import store
@@ -117,13 +117,16 @@ def chat(body: ChatRequest):
     if conversation is None:
         raise HTTPException(status_code=404, detail="conversation not found")
 
-    if body.model:
-        override_model(body.model)
+    settings = with_model(get_settings(), body.model) if body.model else None
 
     def gen():
         try:
             for kind, payload in run_chat_turn(
-                db_path, body.conversation_id, body.question, body.max_iterations
+                db_path,
+                body.conversation_id,
+                body.question,
+                body.max_iterations,
+                settings=settings,
             ):
                 if kind == "status":
                     yield _sse("status", {"node": payload["node"]})

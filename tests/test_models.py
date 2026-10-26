@@ -103,3 +103,45 @@ def test_cost_present_in_response_metadata():
     assert "cost" in token_usage, f"no cost in {token_usage}"
     assert float(token_usage["cost"]) >= 0
     assert int(token_usage.get("total_tokens", 0)) > 0, f"no tokens consumed: {token_usage}"
+
+
+def _rate_limit():
+    from types import SimpleNamespace
+
+    from langchain_openai.chat_models.base import OpenAIRateLimitError
+
+    request = SimpleNamespace(method="POST", url="https://openrouter.ai", headers={})
+    response = SimpleNamespace(status_code=429, headers={}, request=request)
+    return OpenAIRateLimitError("429", response=response, body={"error": {"code": 429}})
+
+
+def _flaky_generate(monkeypatch, failures):
+    from langchain_openai import ChatOpenAI
+
+    calls = {"n": 0}
+
+    def fake_generate(self, *args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] <= failures:
+            raise _rate_limit()
+        return "ok"
+
+    monkeypatch.setattr(ChatOpenAI, "_generate", fake_generate)
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+    return calls
+
+
+def test_rate_limit_attempts_retries_one_model_call(monkeypatch):
+    calls = _flaky_generate(monkeypatch, failures=2)
+    model = get_model("researcher", _settings())
+    model.rate_limit_attempts = 5
+    assert model._generate([]) == "ok"
+    assert calls["n"] == 3
+
+
+def test_rate_limit_retry_is_off_by_default(monkeypatch):
+    calls = _flaky_generate(monkeypatch, failures=1)
+    model = get_model("verifier", _settings())
+    with pytest.raises(Exception, match="429"):
+        model._generate([])
+    assert calls["n"] == 1

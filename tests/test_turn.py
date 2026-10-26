@@ -46,7 +46,7 @@ def db_path(tmp_path):
 
 def test_run_chat_turn_streams_status_then_persists_result(db_path, monkeypatch):
     conv_id = store.create_conversation(db_path)
-    monkeypatch.setattr(turn, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(turn, "build_graph", lambda settings=None: _LinearFakeGraph())
     monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
 
     events = list(turn.run_chat_turn(db_path, conv_id, "Q?"))
@@ -62,7 +62,7 @@ def test_run_chat_turn_streams_status_then_persists_result(db_path, monkeypatch)
 
 def test_run_chat_turn_passes_through_tool_events(db_path, monkeypatch):
     conv_id = store.create_conversation(db_path)
-    monkeypatch.setattr(turn, "build_graph", lambda: _ToolEventGraph())
+    monkeypatch.setattr(turn, "build_graph", lambda settings=None: _ToolEventGraph())
     monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
 
     events = list(turn.run_chat_turn(db_path, conv_id, "Q?"))
@@ -73,7 +73,7 @@ def test_run_chat_turn_passes_through_tool_events(db_path, monkeypatch):
 
 def test_run_chat_turn_yields_error_without_persisting(db_path, monkeypatch):
     conv_id = store.create_conversation(db_path)
-    monkeypatch.setattr(turn, "build_graph", lambda: _RaisingGraph())
+    monkeypatch.setattr(turn, "build_graph", lambda settings=None: _RaisingGraph())
     monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
 
     events = list(turn.run_chat_turn(db_path, conv_id, "Q?"))
@@ -101,7 +101,7 @@ def test_run_chat_turn_condenses_using_stored_history(db_path, monkeypatch):
             captured_state["state"] = state
             yield from super().stream(state, stream_mode=stream_mode)
 
-    monkeypatch.setattr(turn, "build_graph", lambda: _CapturingGraph())
+    monkeypatch.setattr(turn, "build_graph", lambda settings=None: _CapturingGraph())
     monkeypatch.setattr(turn, "condense_question", fake_condense)
 
     list(turn.run_chat_turn(db_path, conv_id, "and that?"))
@@ -118,7 +118,7 @@ def test_run_chat_turn_raises_keyerror_for_missing_conversation(db_path):
 
 def test_run_chat_turn_still_yields_result_when_persist_fails(db_path, monkeypatch, capsys):
     conv_id = store.create_conversation(db_path)
-    monkeypatch.setattr(turn, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(turn, "build_graph", lambda settings=None: _LinearFakeGraph())
     monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
     monkeypatch.setattr(
         turn.store, "append_message", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("locked"))
@@ -129,3 +129,25 @@ def test_run_chat_turn_still_yields_result_when_persist_fails(db_path, monkeypat
     assert events[-1][0] == "result"
     assert events[-1][1]["answer"] == "Final [1]."
     assert "failed to persist" in capsys.readouterr().err
+
+
+def test_run_chat_turn_passes_settings_to_condense_and_graph(db_path, monkeypatch):
+    from app.config import Settings
+
+    conv_id = store.create_conversation(db_path)
+    store.append_message(db_path, conv_id, "first?", {"answer": "first answer"})
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    seen = {}
+
+    def fake_build_graph(s=None):
+        seen["graph"] = s
+        return _LinearFakeGraph()
+
+    def fake_condense(history, question, **kwargs):
+        seen["condense"] = kwargs.get("settings")
+        return question
+
+    monkeypatch.setattr(turn, "build_graph", fake_build_graph)
+    monkeypatch.setattr(turn, "condense_question", fake_condense)
+    list(turn.run_chat_turn(db_path, conv_id, "second?", settings=settings))
+    assert seen == {"graph": settings, "condense": settings}

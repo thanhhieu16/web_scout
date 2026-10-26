@@ -52,7 +52,7 @@ def test_web_search_formats_annotations():
     tool = make_web_search(Settings(_env_file=None), transport=httpx.MockTransport(handler))  # type: ignore[call-arg]
     out = tool.invoke({"query": "test query"})
     assert out.startswith("SEARCH_RESULTS (1 results, 1 search executed)")
-    assert "[SRC] https://x.dev | X Title" in out
+    assert "[S1] https://x.dev | X Title" in out
     assert "EXCERPT: useful x content" in out
 
 
@@ -106,8 +106,8 @@ def test_web_search_no_results_returns_search_error():
 def test_collect_search_tool_sources_pairs_and_parses():
     content = (
         "SEARCH_RESULTS (2 results, 1 search executed):\n\n"
-        "[SRC] https://a.dev | A Title\nEXCERPT: alpha excerpt\n\n"
-        "[SRC] https://b.dev | B Title\nEXCERPT: beta excerpt"
+        "[S1] https://a.dev | A Title\nEXCERPT: alpha excerpt\n\n"
+        "[S2] https://b.dev | B Title\nEXCERPT: beta excerpt"
     )
     messages = [
         AIMessage(
@@ -129,7 +129,7 @@ def test_collect_search_tool_sources_ignores_unrelated_tools():
             content="",
             tool_calls=[{"name": "web_fetch", "args": {"url": "https://z"}, "id": "f1"}],
         ),
-        ToolMessage(content="[SRC] https://noisy.dev | N\nEXCERPT: x", tool_call_id="f1"),
+        ToolMessage(content="[S1] https://noisy.dev | N\nEXCERPT: x", tool_call_id="f1"),
     ]
     assert collect_search_tool_sources(messages) == []
 
@@ -230,7 +230,7 @@ def test_web_search_falls_back_to_duckduckgo_on_hard_failure(monkeypatch):
     )
     out = tool.invoke({"query": "q"})
     assert out.startswith("SEARCH_RESULTS")
-    assert "[SRC] https://example.com/page | Example Title" in out
+    assert "[S1] https://example.com/page | Example Title" in out
     assert "EXCERPT: Example snippet text here." in out
 
 
@@ -247,7 +247,7 @@ def test_web_search_falls_back_to_duckduckgo_on_no_results():
     )
     out = tool.invoke({"query": "q"})
     assert out.startswith("SEARCH_RESULTS")
-    assert "[SRC] https://example.com/page | Example Title" in out
+    assert "[S1] https://example.com/page | Example Title" in out
 
 
 def test_web_search_returns_original_error_when_fallback_also_fails(monkeypatch):

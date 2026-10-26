@@ -50,17 +50,18 @@ def test_build_sources_merges_annotations_and_fetched():
         ToolMessage(content="fetched body", tool_call_id="f1"),
         AIMessage(content="## FINDINGS\n- [S1] x | confidence: high\n"),
     ]
-    sources, ref_order = build_sources(messages)
+    sources, ref_map = build_sources(messages)
     assert [s["url"] for s in sources] == ["https://ann.dev", "https://fetched.dev"]
-    assert ref_order == [{"url": "https://ann.dev"}, {"url": "https://fetched.dev"}]
+    # No tool printed an ID here, so refs fall back to list position.
+    assert ref_map == {"S1": "https://ann.dev", "S2": "https://fetched.dev"}
     assert sources[0]["title"] == "Ann"
     assert sources[1]["excerpt"] == "fetched body"
 
 
 def test_build_sources_empty_messages():
-    sources, ref_order = build_sources([AIMessage(content="no tools here")])
+    sources, ref_map = build_sources([AIMessage(content="no tools here")])
     assert sources == []
-    assert ref_order == []
+    assert ref_map == {}
 
 
 def test_search_engine_result_pages_filtered():

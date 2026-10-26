@@ -1,6 +1,7 @@
 import sys
 from collections.abc import Iterator
 
+from app.config import Settings
 from app.conversation import condense_question
 from app.graph import build_graph
 from app.main import stream_pipeline
@@ -12,6 +13,7 @@ def run_chat_turn(
     conversation_id: int,
     question: str,
     max_iterations: int | None = None,
+    settings: Settings | None = None,
 ) -> Iterator[tuple[str, dict]]:
     """Run one conversation turn, yielding progress then the final result.
 
@@ -21,6 +23,9 @@ def run_chat_turn(
     the last item. On "result", the turn is persisted via
     `store.append_message` before it's yielded. On "error", nothing is
     persisted — a failed turn must never appear in history.
+
+    `settings` (default: the cached process-wide Settings) drives both the
+    condense call and the graph, so a per-request model choice reaches them.
 
     Raises KeyError if `conversation_id` doesn't exist in `db_path` (only
     once the generator is actually iterated, since this is a generator
@@ -34,8 +39,8 @@ def run_chat_turn(
             {"question": m["question"], "answer": m["out"].get("answer", "")}
             for m in conversation["messages"]
         ]
-        condensed = condense_question(history, question)
-        graph = build_graph()
+        condensed = condense_question(history, question, settings=settings)
+        graph = build_graph(settings)
         for kind, payload in stream_pipeline(
             condensed, graph=graph, max_iterations=max_iterations
         ):

@@ -8,6 +8,7 @@ import trafilatura
 from langchain_core.tools import tool
 
 from app.config import FetchConfig
+from app.tools.sources import SourceRegistry
 
 _ALLOWED_SCHEMES = {"http", "https"}
 
@@ -71,14 +72,22 @@ def make_web_fetch(
     transport: httpx.BaseTransport | None = None,
     resolve=default_resolve,
     cache=None,
+    registry: SourceRegistry | None = None,
 ):
+    registry = registry or SourceRegistry()
+
+    def _labeled(url: str, text: str) -> str:
+        # Header shape is parsed back by app/nodes/parsing.py (_FETCH_HEADER_RE).
+        return f"[{registry.id_for(url)}] {url}\n\n{text}"
+
     @tool
     def web_fetch(url: str) -> str:
-        """Fetch a web page and return its readable main text."""
+        """Fetch a web page and return its readable main text, headed by its source ID
+        (e.g. [S3]) — cite the page with that ID."""
         if cache is not None:
             cached = cache.get(url)
             if cached is not None:
-                return cached
+                return _labeled(url, cached)
 
         too_large = (
             f"FETCH_ERROR: response exceeds max_download_bytes "
@@ -130,6 +139,6 @@ def make_web_fetch(
         result = clean_html(text, cfg.max_chars)
         if cache is not None:
             cache.set(url, result)
-        return result
+        return _labeled(url, result)
 
     return web_fetch

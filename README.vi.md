@@ -51,10 +51,12 @@ không vòng lặp nội bộ — nhờ vậy chi phí một lần chạy tỉ l
 
 1. Research agent trả lời bằng văn xuôi và luôn kết thúc mỗi lượt bằng một block `## FINDINGS`:
    `- [S1] claim | confidence: high`.
-2. Danh sách nguồn được **dựng lại từ lịch sử tin nhắn**, không bao giờ lấy trực tiếp từ model: ưu
-   tiên annotation trích dẫn URL trước, rồi đến các block `[SRC]` parse ra từ kết quả `web_search`,
-   rồi đến các trang `web_fetch` thành công. Thứ tự này quyết định cách đánh số `[Sn]`.
-3. Mỗi tham chiếu `Sn` được resolve về một URL thật. Cái nào không resolve được sẽ báo là **weak
+2. `web_search` và `web_fetch` gắn cho mỗi URL trả về một ID nguồn cố định (`[S3] url | title`, hoặc
+   header `[S3] url` ở đầu trang đã fetch). Một URL giữ nguyên một ID trong suốt lượt, và agent trích
+   dẫn bằng cách chép lại ID đó — không tự đánh số nguồn.
+3. Danh sách nguồn được **dựng lại từ lịch sử tin nhắn**, không bao giờ lấy trực tiếp từ model: ưu
+   tiên annotation trích dẫn URL trước, rồi đến các block kết quả `web_search`, rồi đến các trang
+   `web_fetch` thành công. Mỗi tham chiếu `Sn` được resolve qua ID mà tool đã in ra về một URL thật. Cái nào không resolve được sẽ báo là **weak
    claim** thay vì âm thầm bỏ qua.
 
 ## Yêu cầu

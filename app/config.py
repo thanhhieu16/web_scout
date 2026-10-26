@@ -138,6 +138,19 @@ def get_settings() -> Settings:
     return Settings()
 
 
+def with_model(settings: Settings, model: str) -> Settings:
+    """Return a copy of `settings` with every role pointed at `model`.
+
+    The per-request counterpart of override_model: the web server serves many
+    users from one process, so a request's model choice must not leak into
+    the cached Settings every other request reads.
+    """
+    copy = settings.model_copy(deep=True)
+    for role in ROLE_NAMES:
+        getattr(copy, role).model = model
+    return copy
+
+
 def override_model(model: str) -> Settings:
     """Point every role at one model for the rest of this process.
 
