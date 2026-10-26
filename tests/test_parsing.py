@@ -78,34 +78,25 @@ def test_find_unknown_refs_flags_missing_citation():
         {"claim": "x", "source_urls": ["https://a.dev"], "confidence": "high"},
         {"claim": "y", "source_urls": ["https://ghost.dev"], "confidence": "low"},
     ]
-    citations = [
-        {"url": "https://a.dev", "title": "A", "content": "long" * 300},
-        {"url": "https://a.dev", "title": "A dup", "content": ""},
-    ]
-    assert find_unknown_refs(findings, citations) == ["https://ghost.dev"]
+    assert find_unknown_refs(findings, {"S1": "https://a.dev"}) == ["https://ghost.dev"]
 
 
 def test_find_unknown_refs_flags_unresolved_prefix():
     findings = [{"claim": "g", "source_urls": ["unresolved:S9"], "confidence": "low"}]
-    assert find_unknown_refs(findings, []) == ["unresolved:S9"]
+    assert find_unknown_refs(findings, {}) == ["unresolved:S9"]
 
 
 def test_parse_maps_source_refs_to_urls():
     parsed = parse_findings_block(SAMPLE)
-    citations = [
-        {"url": "https://langchain.ai", "title": "LG docs", "content": ""},
-        {"url": "https://temporal.io", "title": "Temporal docs", "content": ""},
-    ]
-    mapped = map_refs_to_urls(parsed.findings, parsed.refs, citations)
+    ref_map = {"S1": "https://langchain.ai", "S2": "https://temporal.io"}
+    mapped = map_refs_to_urls(parsed.findings, parsed.refs, ref_map)
     assert mapped[0]["source_urls"] == ["https://langchain.ai"]
     assert mapped[1]["source_urls"] == ["https://temporal.io"]
 
 
 def test_map_refs_unresolved_marker():
     parsed = parse_findings_block("## FINDINGS\n- [S9] Ghost | confidence: low\n")
-    mapped = map_refs_to_urls(
-        parsed.findings, parsed.refs, [{"url": "https://y.dev", "title": "Y", "content": ""}]
-    )
+    mapped = map_refs_to_urls(parsed.findings, parsed.refs, {"S1": "https://y.dev"})
     assert mapped[0]["source_urls"] == ["unresolved:S9"]
 
 
@@ -173,6 +164,6 @@ def test_multi_ref_maps_to_multiple_urls():
     parsed = parse_findings_block(
         "## FINDINGS\n- [S1][S2] Cross-checked | confidence: high\n"
     )
-    citations = [{"url": "https://a.dev"}, {"url": "https://b.dev"}]
-    mapped = map_refs_to_urls(parsed.findings, parsed.refs, citations)
+    ref_map = {"S1": "https://a.dev", "S2": "https://b.dev"}
+    mapped = map_refs_to_urls(parsed.findings, parsed.refs, ref_map)
     assert mapped[0]["source_urls"] == ["https://a.dev", "https://b.dev"]

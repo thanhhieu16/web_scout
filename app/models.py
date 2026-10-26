@@ -1,6 +1,7 @@
 from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 
+from app.backoff import call_with_backoff
 from app.config import ROLE_NAMES, RoleConfig, Settings, get_settings
 
 ROLES = ROLE_NAMES
@@ -8,6 +9,17 @@ ROLES = ROLE_NAMES
 
 class ResearchChatOpenAI(ChatOpenAI):
     use_responses_api: bool = False
+    # >1 wraps each call in call_with_backoff. Only the researcher sets it: its
+    # calls run inside the agent loop, where an outer retry would replay the
+    # whole run. Other roles keep call_with_backoff at their call sites.
+    rate_limit_attempts: int = 1
+
+    def _generate(self, *args, **kwargs):
+        if self.rate_limit_attempts <= 1:
+            return super()._generate(*args, **kwargs)
+        return call_with_backoff(
+            super()._generate, *args, attempts=self.rate_limit_attempts, **kwargs
+        )
 
     def _create_chat_result(self, response, generation_info=None):
         result = super()._create_chat_result(response, generation_info)

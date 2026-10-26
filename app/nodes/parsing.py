@@ -55,13 +55,13 @@ def parse_findings_block(text: str) -> FindingsParse:
 
 
 def map_refs_to_urls(
-    findings: list[Finding], refs: list[list[str]], citations: list[dict]
+    findings: list[Finding], refs: list[list[str]], ref_map: dict[str, str]
 ) -> list[Finding]:
-    ordered_urls = [c.get("url") for c in citations if c.get("url")]
-    ref_to_url = {f"S{i + 1}": u for i, u in enumerate(ordered_urls)}
+    """Resolve each finding's `Sn` refs through `ref_map` (from `build_sources`);
+    a ref missing from the map becomes `unresolved:Sn`."""
     mapped: list[Finding] = []
     for finding, finding_refs in zip(findings, refs, strict=True):
-        urls = [ref_to_url.get(r, f"unresolved:{r}") for r in finding_refs]
+        urls = [ref_map.get(r, f"unresolved:{r}") for r in finding_refs]
         mapped.append(
             Finding(
                 claim=finding["claim"],
@@ -157,9 +157,16 @@ def _is_search_result_page(url: str) -> bool:
     return any(marker in url for marker in _SEARCH_ENGINE_MARKERS)
 
 
-def collect_fetched_sources(messages) -> "list[Source]":
+# web_fetch output opens with "[Sn] <url>" then a blank line (app/tools/fetch.py).
+_FETCH_HEADER_RE = re.compile(r"^\[(S\d+)\] \S+\n\n")
+# web_search result blocks (app/tools/search_tool.py). "SRC" is the legacy
+# unnumbered label, still accepted so an old transcript parses.
+_SEARCH_BLOCK_RE = re.compile(r"\[(S\d+|SRC)\] (\S+) \| ([^\n]+)(?:\nEXCERPT: ([^\n]+))?")
+
+
+def _fetched_entries(messages) -> "list[tuple[Source, str | None]]":
     pending: dict[str, str] = {}
-    out: list[Source] = []
+    out: list[tuple[Source, str | None]] = []
     seen: set[str] = set()
     for message in messages:
         tool_calls = getattr(message, "tool_calls", None) or []
@@ -181,15 +188,23 @@ def collect_fetched_sources(messages) -> "list[Source]":
             if _is_search_result_page(url):
                 continue
             seen.add(url)
-            out.append(Source(url=url, title=url, source_type="secondary", excerpt=text[:500]))
+            header = _FETCH_HEADER_RE.match(text)
+            ref = header.group(1) if header else None
+            body = text[header.end() :] if header else text
+            out.append(
+                (Source(url=url, title=url, source_type="secondary", excerpt=body[:500]), ref)
+            )
     return out
 
 
-def collect_search_tool_sources(messages) -> "list[Source]":
+def collect_fetched_sources(messages) -> "list[Source]":
+    return [source for source, _ in _fetched_entries(messages)]
+
+
+def _search_tool_entries(messages) -> "list[tuple[Source, str | None]]":
     pending: set[str] = set()
-    out: list[Source] = []
+    out: list[tuple[Source, str | None]] = []
     seen: set[str] = set()
-    block_re = re.compile(r"\[SRC\] (\S+) \| ([^\n]+)(?:\nEXCERPT: ([^\n]+))?")
     for message in messages:
         for call in getattr(message, "tool_calls", None) or []:
             if call.get("name") == "web_search":
@@ -201,28 +216,38 @@ def collect_search_tool_sources(messages) -> "list[Source]":
             getattr(message, "tool_call_id", "")
         ) in pending:
             pending.discard(str(message.tool_call_id))
-            for match in block_re.finditer(str(content)):
-                url, title, excerpt = match.group(1), match.group(2), match.group(3)
+            for match in _SEARCH_BLOCK_RE.finditer(str(content)):
+                label, url, title, excerpt = match.groups()
                 if url in seen:
                     continue
                 seen.add(url)
-                out.append(
-                    Source(
-                        url=url,
-                        title=title.strip(),
-                        source_type="secondary",
-                        excerpt=(excerpt or "").strip()[:500],
-                    )
+                source = Source(
+                    url=url,
+                    title=title.strip(),
+                    source_type="secondary",
+                    excerpt=(excerpt or "").strip()[:500],
                 )
+                out.append((source, None if label == "SRC" else label.upper()))
     return out
 
 
-def build_sources(messages) -> "tuple[list[Source], list[dict]]":
+def collect_search_tool_sources(messages) -> "list[Source]":
+    return [source for source, _ in _search_tool_entries(messages)]
+
+
+def build_sources(messages) -> "tuple[list[Source], dict[str, str]]":
+    """Return the ordered source list and the `Sn` -> url map findings resolve through.
+
+    The map comes from the IDs the tools printed next to each URL (see
+    app/tools/sources.py), so it no longer depends on the list order. Only a
+    transcript where no tool printed an ID (annotation-only, or legacy
+    unnumbered output) falls back to numbering sources by list position.
+    """
     citations = collect_citations(messages)
-    search_tool = collect_search_tool_sources(messages)
-    fetched = collect_fetched_sources(messages)
+    tool_entries = _search_tool_entries(messages) + _fetched_entries(messages)
     known: dict[str, Source] = {}
     ordered: list[Source] = []
+    ref_map: dict[str, str] = {}
     for cite in citations:
         url = cite.get("url")
         if not url or url in known:
@@ -235,17 +260,20 @@ def build_sources(messages) -> "tuple[list[Source], list[dict]]":
         )
         known[url] = source
         ordered.append(source)
-    for source in search_tool + fetched:
+    for source, ref in tool_entries:
+        if ref is not None:
+            ref_map.setdefault(ref, source["url"])
         if source["url"] not in known:
             known[source["url"]] = source
             ordered.append(source)
-    ref_order = [{"url": s["url"]} for s in ordered]
-    return ordered, ref_order
+    if not ref_map:
+        ref_map = {f"S{i + 1}": s["url"] for i, s in enumerate(ordered)}
+    return ordered, ref_map
 
 
-def find_unknown_refs(findings: list[Finding], citations: list[dict]) -> list[str]:
-    """URLs a finding cites that are not in the reconstructed citation list."""
-    known = {c["url"] for c in citations if c.get("url")}
+def find_unknown_refs(findings: list[Finding], ref_map: dict[str, str]) -> list[str]:
+    """URLs a finding cites that are not among the sources `ref_map` resolves to."""
+    known = set(ref_map.values())
     unknown: list[str] = []
     for finding in findings:
         for url in finding.get("source_urls", []):

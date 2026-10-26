@@ -112,7 +112,7 @@ def test_prompt_runs_the_real_run_chat_turn_through_to_sqlite(isolated_db, monke
     from app import turn
 
     conv_id = store.create_conversation(isolated_db)
-    monkeypatch.setattr(turn, "build_graph", lambda: _LinearFakeGraph())
+    monkeypatch.setattr(turn, "build_graph", lambda settings=None: _LinearFakeGraph())
     monkeypatch.setattr(turn, "condense_question", lambda history, question, **k: question)
 
     agent = acp_server.WebScoutAcpAgent()

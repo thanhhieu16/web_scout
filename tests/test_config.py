@@ -84,3 +84,16 @@ def test_conversations_db_path_defaults_under_repo_root(tmp_path, monkeypatch):
 
     s = Settings(_env_file=None)  # type: ignore[call-arg]
     assert s.conversations_db_path == str(REPO_ROOT / "data" / "webscout.db")
+
+
+def test_with_model_copies_instead_of_mutating_cached_settings():
+    from app.config import ROLE_NAMES, Settings, with_model
+
+    base = Settings(_env_file=None)  # type: ignore[call-arg]
+    original = base.researcher.model
+    chosen = with_model(base, "minimax/minimax-m3:free")
+    assert [getattr(chosen, r).model for r in ROLE_NAMES] == [
+        "minimax/minimax-m3:free"
+    ] * len(ROLE_NAMES)
+    assert base.researcher.model == original
+    assert chosen.researcher.temperature == base.researcher.temperature

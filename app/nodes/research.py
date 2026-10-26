@@ -2,7 +2,6 @@ import json
 import sys
 from collections.abc import Callable
 
-from app.backoff import call_with_backoff
 from app.config import Settings
 from app.nodes.parsing import (
     build_sources,
@@ -61,8 +60,10 @@ def make_research_node(
     def research(state: ResearchState) -> dict:
         prompt = build_research_input(state)
         writer = _resolve_tool_event_writer()
-        result = call_with_backoff(
-            agent.invoke,
+        # No call_with_backoff here: retrying agent.invoke would replay every
+        # search and fetch so far. Rate limits are retried per model call
+        # instead (ResearchChatOpenAI.rate_limit_attempts).
+        result = agent.invoke(
             {"messages": [{"role": "user", "content": prompt}]},
             config={
                 "recursion_limit": 50,
@@ -72,9 +73,9 @@ def make_research_node(
         messages = result["messages"]
         message = messages[-1]
         parsed = parse_findings_block(str(message.content))
-        sources, ref_order = build_sources(messages)
-        findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_order)
-        unknown = find_unknown_refs(findings, ref_order)
+        sources, ref_map = build_sources(messages)
+        findings = map_refs_to_urls(parsed.findings, parsed.refs, ref_map)
+        unknown = find_unknown_refs(findings, ref_map)
         unknown_set = set(unknown)
         seen_weak: set[str] = set()
         weak: list[str] = []

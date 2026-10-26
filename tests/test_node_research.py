@@ -160,3 +160,25 @@ def test_unparseable_findings_line_becomes_weak_claim(capsys):
     delta = make_research_node(agent, s)({"question": "Q?", "iteration": 0})
     assert any("unparseable FINDINGS line" in w for w in delta["weak_claims"])
     assert "[warn]" in capsys.readouterr().err
+
+
+def test_research_node_does_not_replay_the_whole_agent_run(monkeypatch):
+    import pytest
+    from langchain_openai.chat_models.base import OpenAIRateLimitError
+
+    request = SimpleNamespace(method="POST", url="https://openrouter.ai", headers={})
+    response = SimpleNamespace(status_code=429, headers={}, request=request)
+    monkeypatch.setattr("app.backoff.time.sleep", lambda s: None)
+
+    class RateLimitedAgent:
+        calls = 0
+
+        def invoke(self, payload, config=None):
+            RateLimitedAgent.calls += 1
+            raise OpenAIRateLimitError("429", response=response, body={})
+
+    node = make_research_node(RateLimitedAgent(), Settings(_env_file=None))  # type: ignore[call-arg]
+    with pytest.raises(OpenAIRateLimitError):
+        node({"question": "q", "iteration": 0})
+    # A 429 that escapes the agent already exhausted the per-call retries.
+    assert RateLimitedAgent.calls == 1
