@@ -38,6 +38,7 @@ def target(inputs: dict) -> dict:
     return {
         "answer": s.get("answer", ""),
         "sources": s.get("sources", []),
+        "findings": s.get("findings", []),
         "search_calls": s.get("search_calls", 0),
         "total_tokens": s.get("total_tokens", 0),
         "total_cost": s.get("total_cost", 0.0),
@@ -66,6 +67,7 @@ def main(argv=None) -> None:
     from evals.evaluators import (
         citation_support_evaluator,
         correctness_evaluator,
+        grounding_evaluator,
         metrics_evaluator,
     )
 
@@ -83,6 +85,7 @@ def main(argv=None) -> None:
         evaluators=[
             correctness_evaluator,
             citation_support_evaluator,
+            grounding_evaluator,
             metrics_evaluator,
         ],
         experiment_prefix=args.experiment_prefix,

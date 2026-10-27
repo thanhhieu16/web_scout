@@ -18,6 +18,7 @@ def test_target_maps_outputs(monkeypatch):
             return {
                 "answer": "A",
                 "sources": [{"url": "u"}],
+                "findings": [{"claim": "c", "grounded": True}],
                 "search_calls": 5,
                 "total_tokens": 4321,
                 "total_cost": 0.0123,
@@ -30,6 +31,7 @@ def test_target_maps_outputs(monkeypatch):
     assert out == {
         "answer": "A",
         "sources": [{"url": "u"}],
+        "findings": [{"claim": "c", "grounded": True}],
         "search_calls": 5,
         "total_tokens": 4321,
         "total_cost": 0.0123,

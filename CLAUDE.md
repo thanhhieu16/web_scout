@@ -18,7 +18,7 @@ uv run pytest -m integration                   # hits OpenRouter + live web
 uv run pytest tests/test_node_verify.py::test_verify_returns_own_weak_claims_only   # single test
 
 uv run python -m evals.run_evals --limit 2     # LangSmith eval (needs LANGSMITH_API_KEY)
-uv run python -m evals.summarize               # A/B arm table from LangSmith projects
+uv run python -m evals.summarize               # A/B arm table from LangSmith projects (pass prefixes to pick arms)
 ```
 
 `uv sync` installs the `dev` dependency group (pytest, ruff) by default — no `--extra` flag. The `webscout` console script is installed by the hatchling build backend. On Windows consoles, set `$env:PYTHONIOENCODING="utf-8"` if printing the answer raises `cp65001` errors.
@@ -59,13 +59,15 @@ The agent returns only prose. [build_sources](app/nodes/parsing.py) rebuilds the
 
 ### The FINDINGS contract
 
-The research prompt ends every reply with a `## FINDINGS` block whose lines are parsed by strict regex in [parse_findings_block](app/nodes/parsing.py) (`- [Sn]... claim | confidence: high|medium|low`). A line may carry several refs (`- [S1][S2] claim | ...`); `parse_findings_block` returns a `FindingsParse` NamedTuple whose `dropped` and `block_found` fields surface contract violations as `weak_claims`. `map_refs_to_urls` then resolves each `Sn` through `build_sources`' `ref_map`; unresolvable refs become `unresolved:Sn` and are surfaced as `weak_claims` by the research node. **`RESEARCH_SYSTEM_PROMPT`, `_LINE_RE`, `map_refs_to_urls`, and the `[Sn]` output shapes of `web_search`/`web_fetch` (with `_SEARCH_BLOCK_RE`/`_FETCH_HEADER_RE`) must change together.**
+The research prompt ends every reply with a `## FINDINGS` block whose lines are parsed by strict regex in [parse_findings_block](app/nodes/parsing.py) (`- [Sn]... claim | confidence: high|medium|low | quote: "..."`; the quote part is optional to the regex). A line may carry several refs (`- [S1][S2] claim | ...`); `parse_findings_block` returns a `FindingsParse` NamedTuple whose `dropped` and `block_found` fields surface contract violations as `weak_claims`. `map_refs_to_urls` then resolves each `Sn` through `build_sources`' `ref_map`; unresolvable refs become `unresolved:Sn` and are surfaced as `weak_claims` by the research node.
+
+[ground_findings](app/nodes/parsing.py) then checks each quote (`FindingsParse.quotes`) against the full text the agent saw for the finding's cited URLs (`collect_source_texts`: fetched bodies + search excerpts — not `build_sources`' 500-char excerpts), after word-level normalization (`_normalize_for_match`; `...` splits the quote into fragments that must all appear). Found → `grounded=True`. No quote or fewer than `_MIN_QUOTE_WORDS` words → `high` capped at `medium`. Quote given but in no cited source → `low` plus a weak claim. The research node then swaps each grounded source's excerpt for its quote (`_excerpts_from_quotes`), because the excerpt is all the answer writer and the `citation_support` judge see of a source. `render_findings` in the answer node prints refs as `[n]` source numbers, drops findings with no resolvable source, and lists `low` findings under a separate "Uncertain findings" heading. **`RESEARCH_SYSTEM_PROMPT`, `_LINE_RE` (incl. its `quote` group), `map_refs_to_urls`, and the `[Sn]` output shapes of `web_search`/`web_fetch` (with `_SEARCH_BLOCK_RE`/`_FETCH_HEADER_RE`) must change together.**
 
 ### State accumulation runs through reducers
 
 [ResearchState](app/state.py) is a `TypedDict` whose cumulative fields carry `Annotated[..., reducer]`: `findings` (`merge_findings`), `sources` (`merge_sources`), `weak_claims` (`merge_weak_claims`), and `iteration` / `search_calls` / `total_tokens` / `total_cost` (`operator.add`). **Nodes return only their own delta** — returning a running total would double-count it.
 
-`merge_sources` dedupes by url with first-occurrence order, which is what keeps `[Sn]` numbering stable once a second research iteration runs. `merge_findings` dedupes by normalized claim text and takes the *lower* confidence on a merge: iteration 2 is instructed to research gaps only, so a repeated claim is not independent confirmation.
+`merge_sources` dedupes by url with first-occurrence order, which is what keeps `[Sn]` numbering stable once a second research iteration runs. `merge_findings` dedupes by normalized claim text and takes the *lower* confidence on a merge: iteration 2 is instructed to research gaps only, so a repeated claim is not independent confirmation. It does adopt a later grounded quote when the existing finding had none.
 
 `gaps`, `sufficient`, `contradictory_claims`, and `answer` deliberately have no reducer — they are the current verdict, not a ledger.
 
